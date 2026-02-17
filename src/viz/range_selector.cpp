@@ -146,19 +146,164 @@ void drawVizRangeSelector(
   if (vizEnd > focusEnd) vizEnd = focusEnd;
   if (vizStart < focusStart) vizStart = focusStart;
 
+  // Strip 1 slide down: toward end of file; stop when focusEnd >= fileSz
+  if (g.focusSlidingDown && fileSz > 0) {
+    float dt = ImGui::GetIO().DeltaTime;
+    size_t windowLen = (g.focusEnd > g.focusStart) ? (g.focusEnd - g.focusStart) : (fileSz / 4);
+    if (windowLen == 0) windowLen = 1;
+    size_t curStart = (g.focusEnd == 0) ? 0 : g.focusStart;
+    size_t curEnd = (g.focusEnd == 0) ? fileSz : g.focusEnd;
+    if (curEnd <= curStart) curEnd = curStart + windowLen;
+    if (curEnd > fileSz) curEnd = fileSz;
+    long step = (long)(g.vizRangePlaySpeed * dt);
+    if (step > 0) {
+      size_t newStart = curStart + (size_t)step;
+      size_t newEnd = newStart + windowLen;
+      if (newEnd >= fileSz) {
+        newEnd = fileSz;
+        newStart = (newEnd >= windowLen) ? (newEnd - windowLen) : 0;
+        g.focusSlidingDown = false;
+      }
+      g.focusStart = newStart;
+      g.focusEnd = newEnd;
+      g.vizRangeStart = g.focusStart;
+      g.vizRangeEnd = g.focusEnd;
+      if (onRangeChanged) onRangeChanged();
+    }
+  }
+  // Strip 1 slide up: toward start; stop when focusStart <= 0
+  if (g.focusSlidingUp && fileSz > 0) {
+    float dt = ImGui::GetIO().DeltaTime;
+    size_t windowLen = (g.focusEnd > g.focusStart) ? (g.focusEnd - g.focusStart) : (fileSz / 4);
+    if (windowLen == 0) windowLen = 1;
+    size_t curStart = (g.focusEnd == 0) ? 0 : g.focusStart;
+    size_t curEnd = (g.focusEnd == 0) ? fileSz : g.focusEnd;
+    if (curEnd <= curStart) curEnd = curStart + windowLen;
+    long step = (long)(g.vizRangePlaySpeed * dt);
+    if (step > 0) {
+      long newStartL = (long)curStart - step;
+      if (newStartL <= 0) {
+        g.focusStart = 0;
+        g.focusEnd = (windowLen < fileSz) ? windowLen : fileSz;
+        g.vizRangeStart = g.focusStart;
+        g.vizRangeEnd = g.focusEnd;
+        g.focusSlidingUp = false;
+      } else {
+        g.focusStart = (size_t)newStartL;
+        g.focusEnd = g.focusStart + windowLen;
+        g.vizRangeStart = g.focusStart;
+        g.vizRangeEnd = g.focusEnd;
+      }
+      if (onRangeChanged) onRangeChanged();
+    }
+  }
+
+  // Strip 2 slide down: toward end of focus; stop when vizEnd >= focusEnd
+  if (g.vizSlidingDown && focusEnd > focusStart) {
+    float dt = ImGui::GetIO().DeltaTime;
+    size_t windowLen = (g.vizRangeEnd > g.vizRangeStart)
+        ? (g.vizRangeEnd - g.vizRangeStart)
+        : (focusEnd - focusStart);
+    if (windowLen == 0) windowLen = 1;
+    size_t curStart = wholeViz ? focusStart : std::max(g.vizRangeStart, focusStart);
+    size_t curEnd = wholeViz ? focusEnd : std::min(g.vizRangeEnd, focusEnd);
+    if (curEnd <= curStart) curEnd = curStart + windowLen;
+    long step = (long)(g.vizRangePlaySpeed * dt);
+    if (step > 0) {
+      size_t newStart = curStart + (size_t)step;
+      size_t newEnd = newStart + windowLen;
+      if (newEnd >= focusEnd) {
+        newEnd = focusEnd;
+        newStart = (newEnd >= windowLen) ? (newEnd - windowLen) : focusStart;
+        g.vizSlidingDown = false;
+      }
+      g.vizRangeStart = newStart;
+      g.vizRangeEnd = newEnd;
+      if (onRangeChanged) onRangeChanged();
+    }
+  }
+  // Strip 2 slide up: toward start of focus; stop when vizStart <= focusStart
+  if (g.vizSlidingUp && focusEnd > focusStart) {
+    float dt = ImGui::GetIO().DeltaTime;
+    size_t windowLen = (g.vizRangeEnd > g.vizRangeStart)
+        ? (g.vizRangeEnd - g.vizRangeStart)
+        : (focusEnd - focusStart);
+    if (windowLen == 0) windowLen = 1;
+    size_t curStart = wholeViz ? focusStart : std::max(g.vizRangeStart, focusStart);
+    size_t curEnd = wholeViz ? focusEnd : std::min(g.vizRangeEnd, focusEnd);
+    if (curEnd <= curStart) curEnd = curStart + windowLen;
+    long step = (long)(g.vizRangePlaySpeed * dt);
+    if (step > 0) {
+      long newStartL = (long)curStart - step;
+      if (newStartL <= (long)focusStart) {
+        g.vizRangeStart = focusStart;
+        g.vizRangeEnd = focusStart + windowLen;
+        if (g.vizRangeEnd > focusEnd) g.vizRangeEnd = focusEnd;
+        g.vizSlidingUp = false;
+      } else {
+        g.vizRangeStart = (size_t)newStartL;
+        g.vizRangeEnd = g.vizRangeStart + windowLen;
+      }
+      if (onRangeChanged) onRangeChanged();
+    }
+  }
+
+  // Recompute from g after sliding so strip drawing uses updated values (and we don't overwrite them later)
+  wholeFocus = (g.focusEnd == 0);
+  focusStart = wholeFocus ? 0 : g.focusStart;
+  focusEnd = wholeFocus ? fileSz : g.focusEnd;
+  if (focusEnd <= focusStart) focusEnd = focusStart + 1;
+  if (focusEnd > fileSz) focusEnd = fileSz;
+
+  wholeViz = (g.vizRangeEnd == 0);
+  vizStart = wholeViz ? focusStart : std::max(g.vizRangeStart, focusStart);
+  vizEnd = wholeViz ? focusEnd : std::min(g.vizRangeEnd, focusEnd);
+  if (vizEnd <= vizStart) vizEnd = vizStart + 1;
+  if (vizEnd > focusEnd) vizEnd = focusEnd;
+  if (vizStart < focusStart) vizStart = focusStart;
+
+  float availY = ImGui::GetContentRegionAvail().y;
+  float btnRowH = ImGui::GetFrameHeightWithSpacing();
+  float stripH = std::max(20.0f, availY - 2.0f * btnRowH);  // one row above, one row below
+
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
+  // Up buttons: enabled only when slider does not touch start of region
+  bool focusNotAtStart = (g.focusEnd != 0 && g.focusStart > 0);
+  bool vizNotAtStart = (g.vizRangeEnd != 0 && g.vizRangeStart > focusStart);
+  ImGui::PushID("strip1_up");
+  ImGui::BeginDisabled(!focusNotAtStart);
+  ImGui::PushStyleColor(ImGuiCol_Button, g.focusSlidingUp ? ImVec4(0.2f, 0.5f, 0.2f, 1.0f) : ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+  if (ImGui::Button(g.focusSlidingUp ? "Stop" : "Up", ImVec2(stripWidthPx, 0))) {
+    g.focusSlidingUp = !g.focusSlidingUp;
+    if (onRangeChanged) onRangeChanged();
+  }
+  ImGui::PopStyleColor();
+  ImGui::EndDisabled();
+  ImGui::PopID();
+  ImGui::SameLine(0, 0);
+  ImGui::PushID("strip2_up");
+  ImGui::BeginDisabled(!vizNotAtStart);
+  ImGui::PushStyleColor(ImGuiCol_Button, g.vizSlidingUp ? ImVec4(0.2f, 0.5f, 0.2f, 1.0f) : ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+  if (ImGui::Button(g.vizSlidingUp ? "Stop" : "Up", ImVec2(stripWidthPx, 0))) {
+    g.vizSlidingUp = !g.vizSlidingUp;
+    if (onRangeChanged) onRangeChanged();
+  }
+  ImGui::PopStyleColor();
+  ImGui::EndDisabled();
+  ImGui::PopID();
+
   // Strip 1 (All data) — own dock with border
-  ImGui::BeginChild("VizStrip1", ImVec2(stripWidthPx, 0),
+  ImGui::BeginChild("VizStrip1", ImVec2(stripWidthPx, stripH),
                     ImGuiChildFlags_Border, ImGuiWindowFlags_NoScrollbar);
-  float stripH = ImGui::GetContentRegionAvail().y;
-  if (stripH < 20.0f) stripH = 20.0f;
+  float s1H = ImGui::GetContentRegionAvail().y;
+  if (s1H < 20.0f) s1H = 20.0f;
   ImVec2 s1Min = ImGui::GetCursorScreenPos();
   ImDrawList* dl1 = ImGui::GetWindowDrawList();
   size_t newFocusStart = focusStart;
   size_t newFocusEnd = focusEnd;
   drawOneStripVertical(dl1, bytes, 0, fileSz, focusStart, focusEnd,
-                       &newFocusStart, &newFocusEnd, s1Min, stripWidthPx, stripH, "strip1",
+                       &newFocusStart, &newFocusEnd, s1Min, stripWidthPx, s1H, "strip1",
                        [&] {
                          if (newFocusStart == 0 && newFocusEnd >= fileSz) {
                            g.focusStart = 0;
@@ -200,16 +345,16 @@ void drawVizRangeSelector(
   ImGui::SameLine(0, 0);
 
   // Strip 2 (Focus) — only the range from strip 1; selection clamped to that
-  ImGui::BeginChild("VizStrip2", ImVec2(stripWidthPx, 0),
+  ImGui::BeginChild("VizStrip2", ImVec2(stripWidthPx, stripH),
                     ImGuiChildFlags_Border, ImGuiWindowFlags_NoScrollbar);
-  stripH = ImGui::GetContentRegionAvail().y;
-  if (stripH < 20.0f) stripH = 20.0f;
+  float s2H = ImGui::GetContentRegionAvail().y;
+  if (s2H < 20.0f) s2H = 20.0f;
   ImVec2 s2Min = ImGui::GetCursorScreenPos();
   ImDrawList* dl2 = ImGui::GetWindowDrawList();
   size_t newVizStart = vizStart2;
   size_t newVizEnd = vizEnd2;
   drawOneStripVertical(dl2, bytes, focusStart2, focusEnd2, vizStart2, vizEnd2,
-                       &newVizStart, &newVizEnd, s2Min, stripWidthPx, stripH, "strip2",
+                       &newVizStart, &newVizEnd, s2Min, stripWidthPx, s2H, "strip2",
                        [&] {
                          size_t vStart = std::max(newVizStart, focusStart2);
                          size_t vEnd = std::min(newVizEnd, focusEnd2);
@@ -222,6 +367,31 @@ void drawVizRangeSelector(
   g.vizRangeEnd = std::min(newVizEnd, focusEnd2);
   if (g.vizRangeEnd <= g.vizRangeStart) g.vizRangeEnd = g.vizRangeStart + 1;
   ImGui::EndChild();
+
+  // Down buttons: enabled only when slider does not touch end of region
+  bool focusNotAtEnd = (g.focusEnd != 0 && g.focusEnd < fileSz);
+  bool vizNotAtEnd = (g.vizRangeEnd != 0 && g.vizRangeEnd < focusEnd);
+  ImGui::PushID("strip1_down");
+  ImGui::BeginDisabled(!focusNotAtEnd);
+  ImGui::PushStyleColor(ImGuiCol_Button, g.focusSlidingDown ? ImVec4(0.2f, 0.5f, 0.2f, 1.0f) : ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+  if (ImGui::Button(g.focusSlidingDown ? "Stop" : "Down", ImVec2(stripWidthPx, 0))) {
+    g.focusSlidingDown = !g.focusSlidingDown;
+    if (onRangeChanged) onRangeChanged();
+  }
+  ImGui::PopStyleColor();
+  ImGui::EndDisabled();
+  ImGui::PopID();
+  ImGui::SameLine(0, 0);
+  ImGui::PushID("strip2_down");
+  ImGui::BeginDisabled(!vizNotAtEnd);
+  ImGui::PushStyleColor(ImGuiCol_Button, g.vizSlidingDown ? ImVec4(0.2f, 0.5f, 0.2f, 1.0f) : ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+  if (ImGui::Button(g.vizSlidingDown ? "Stop" : "Down", ImVec2(stripWidthPx, 0))) {
+    g.vizSlidingDown = !g.vizSlidingDown;
+    if (onRangeChanged) onRangeChanged();
+  }
+  ImGui::PopStyleColor();
+  ImGui::EndDisabled();
+  ImGui::PopID();
 
   ImGui::PopStyleVar();
 }

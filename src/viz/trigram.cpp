@@ -478,7 +478,7 @@ void drawTrigram() {
     }
     ImGui::TextDisabled("White from additive blend. New gradients: see shaders/trigram_fragment_gradient_template.glsl");
     ImGui::Spacing();
-    ImGui::TextDisabled("Trackpad: two-finger swipe = pan, pinch = zoom. Drag = rotate. Cmd+scroll = zoom (fallback).");
+    ImGui::TextDisabled("Trackpad: two-finger swipe = rotate, pinch = zoom. Drag = pan. Cmd+scroll = zoom (fallback).");
     ImGui::Spacing();
     const float kBrightnessStep = 0.1f;
     ImGui::AlignTextToFramePadding();
@@ -510,11 +510,14 @@ void drawTrigram() {
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
   float parentW = ImGui::GetContentRegionAvail().x;
   float stripW = (parentW * 0.075f);  // 7.5% each, 15% total
+  float selectorW = 2.0f * stripW;
+  ImGui::BeginChild("SelectorColumn", ImVec2(selectorW, 0), ImGuiChildFlags_None);
   drawVizRangeSelector(g.bytes.data(), fileSz, stripW, [] {
     buildTrigramGeometry();
     buildDigramTexture();
     g.trigramDirty = true;
   });
+  ImGui::EndChild();
 
   ImGui::SameLine(0, 0);
   ImGui::BeginChild("VizMain", ImVec2(0, 0), ImGuiChildFlags_None);
@@ -531,26 +534,26 @@ void drawTrigram() {
 
   ImGui::InvisibleButton("##trigram_area", avail);
 
-  // Drag = rotate. Scroll: modifier = zoom, no modifier = pan (with bounds).
+  // Drag (click + move) = pan. Two-finger swipe (scroll) = rotate.
   if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
     ImVec2 delta = ImGui::GetIO().MouseDelta;
-    g.trigramRotY += delta.x * 0.5f;
-    g.trigramRotX += delta.y * 0.5f;
+    float panSpeed = 0.004f * g.trigramZoom;
+    const float maxPan = 1.0f;
+    g.trigramPanX = std::max(-maxPan, std::min(maxPan, g.trigramPanX + delta.x * panSpeed));
+    g.trigramPanY = std::max(-maxPan, std::min(maxPan, g.trigramPanY - delta.y * panSpeed));
     g.trigramDirty = true;
     g.trigramUserDragging = true;
   } else {
     g.trigramUserDragging = false;
   }
-  // Two-finger swipe = pan. Pinch = zoom (on macOS we use native NSEventTypeMagnify).
+  // Pinch = zoom. Scroll (no modifier) = rotate. Cmd/Ctrl+scroll = zoom fallback.
   if (ImGui::IsItemHovered()) {
-    // Native pinch (macOS): drives zoom directly so pinch-to-zoom works.
     float pinch = MacPinchZoomDeltaConsume();
     if (pinch != 0.0f) {
-      g.trigramZoom -= pinch * 2.0f;  // scale so pinch feels natural
+      g.trigramZoom -= pinch * 2.0f;
       g.trigramZoom = std::max(0.35f, std::min(8.0f, g.trigramZoom));
       g.trigramDirty = true;
     }
-    // Scroll = pan (swipe). Cmd/Ctrl+scroll = zoom fallback when not on macOS or no pinch.
     ImGuiIO& io = ImGui::GetIO();
     float wheel = io.MouseWheel;
     float wheelH = io.MouseWheelH;
@@ -560,11 +563,10 @@ void drawTrigram() {
       g.trigramZoom = std::max(0.35f, std::min(8.0f, g.trigramZoom));
       g.trigramDirty = true;
     } else if (!zoomGesture && (wheel != 0.0f || wheelH != 0.0f)) {
-      float panSpeed = 0.04f * g.trigramZoom;
-      const float maxPan = 1.0f;
-      g.trigramPanY = std::max(-maxPan, std::min(maxPan, g.trigramPanY - wheel * panSpeed));   // swipe up → render up
-      g.trigramPanX = std::max(-maxPan, std::min(maxPan, g.trigramPanX + wheelH * panSpeed));  // swipe left → render left
+      g.trigramRotY += wheelH * 0.5f;
+      g.trigramRotX += wheel * 0.5f;
       g.trigramDirty = true;
+      g.trigramUserDragging = true;
     }
   }
 
@@ -594,11 +596,11 @@ void drawTrigram() {
 
   ImGui::EndChild();
 
-  // Settings button floating over the canvas (top-left so it's not hidden by dock/tabs)
+  // Settings button overlaid at top-right of canvas (only relevant to Trigram)
   float btnW = ImGui::CalcTextSize("Settings").x + ImGui::GetStyle().FramePadding.x * 2.0f;
   float btnH = ImGui::GetFrameHeight();
   const float pad = 8.0f;
-  float btnX = origin.x + pad;
+  float btnX = origin.x + drawW - pad - btnW;
   float btnY = origin.y + pad;
   ImGui::SetCursorScreenPos(ImVec2(btnX, btnY));
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.28f, 0.32f, 0.95f));

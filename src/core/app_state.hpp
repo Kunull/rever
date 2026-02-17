@@ -45,6 +45,14 @@ struct AppState {
   size_t focusStart = 0;
   size_t focusEnd = 0;
 
+  // Strip 1: sliding down = toward end of file; sliding up = toward start. Auto-stop at region bounds.
+  bool focusSlidingDown = false;
+  bool focusSlidingUp = false;
+  // Strip 2: sliding down = toward end of focus; sliding up = toward start of focus.
+  bool vizSlidingDown = false;
+  bool vizSlidingUp = false;
+  float vizRangePlaySpeed = 50000.0f;  // bytes per second
+
   // Trigram (3D point cloud)
   GLuint trigramVAO = 0, trigramVBO = 0;
   GLuint trigramShader = 0;
