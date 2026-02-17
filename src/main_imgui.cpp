@@ -54,6 +54,10 @@ static void loadFile(const char* path) {
   g.trigramVertCount = 0;
   g.trigramDirty = true;
   g.vizNeedsRebuild = true;
+  g.vizRangeStart = 0;
+  g.vizRangeEnd = 0;
+  g.focusStart = 0;
+  g.focusEnd = 0;
   LOG("[rever] file loaded, %zu bytes, GPU viz deferred\n", g.bytes.size());
 
   g.strings = extract_strings(g.bytes.data(), g.bytes.size(), g.stringsMinLen);
@@ -189,6 +193,7 @@ int main(int argc, char** argv) {
         ImGui::MenuItem("Search", nullptr, &g.showSearch);
         ImGui::SeparatorText("Visualization");
         ImGui::MenuItem("Trigram", nullptr, &g.showTrigram);
+        if (ImGui::MenuItem("Trigram settings...")) g.openTrigramSettingsPopup = true;
         ImGui::MenuItem("Histogram", nullptr, &g.showHistogram);
         ImGui::MenuItem("Entropy", nullptr, &g.showEntropy);
         ImGui::MenuItem("Bigram", nullptr, &g.showBigram);
@@ -286,32 +291,6 @@ int main(int argc, char** argv) {
     if (g.showSearch) drawSearch();
     if (g.showBookmarks) drawBookmarks();
     if (g.showInfo) drawInfo();
-
-    ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(vp->Pos.x, vp->Pos.y + vp->Size.y - 22));
-    ImGui::SetNextWindowSize(ImVec2(vp->Size.x, 22));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 3));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 1));
-    if (ImGui::Begin("##statusbar", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings)) {
-      if (g.fileLoaded) {
-        size_t sa = std::min(g.hexSelStart, g.hexSelEnd);
-        size_t sb = std::max(g.hexSelStart, g.hexSelEnd);
-        if (sa != sb)
-          ImGui::TextColored(ImVec4(0.4f,0.4f,0.4f,1), "%s — %zu bytes — %s | Cursor: 0x%zx | Sel: 0x%zx-0x%zx (%zu bytes)%s",
-            g.fileName.c_str(), g.bytes.size(), g.fileFormat.c_str(), g.hexCursor, sa, sb, sb - sa + 1,
-            g.hexModified.empty() ? "" : " [modified]");
-        else
-          ImGui::TextColored(ImVec4(0.4f,0.4f,0.4f,1), "%s — %zu bytes — %s | Cursor: 0x%zx%s",
-            g.fileName.c_str(), g.bytes.size(), g.fileFormat.c_str(), g.hexCursor,
-            g.hexModified.empty() ? "" : " [modified]");
-      } else {
-        ImGui::TextColored(ImVec4(0.4f,0.4f,0.4f,1), "Ready — Drop a file or Cmd+O");
-      }
-    }
-    ImGui::End();
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
 
     if (g.fileLoaded) {
       char title[256];

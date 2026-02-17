@@ -112,12 +112,19 @@ void renderDigramFBO() {
 
 void buildDigramTexture() {
   if (g.bytes.size() < 2) return;
-  size_t sz = g.bytes.size();
+  size_t focusEnd = g.focusEnd != 0 ? g.focusEnd : g.bytes.size();
+  size_t focusStart = g.focusStart;
+  size_t end = g.vizRangeEnd != 0 ? g.vizRangeEnd : focusEnd;
+  size_t start = g.vizRangeStart;
+  start = std::max(start, focusStart);
+  end = std::min(end, focusEnd);
+  if (start >= end || end - start < 2) return;
+  size_t sz = end - start;
   std::vector<uint64_t> bigtab(256 * 256 * 2, 0);
-  for (size_t i = 0; i + 1 < sz; i++) {
+  for (size_t i = start; i + 1 < end; i++) {
     size_t idx = g.bytes[i] * 512 + g.bytes[i + 1] * 2;
     bigtab[idx]++;
-    bigtab[idx + 1] += i;
+    bigtab[idx + 1] += (i - start);
   }
   uint64_t maxPairCount = 0;
   for (size_t i = 0; i < 256 * 256 * 2; i += 2)

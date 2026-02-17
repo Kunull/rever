@@ -1,32 +1,44 @@
 #include "ui/ui_panels.hpp"
+#include "imgui.h"
+#include "ui/design.hpp"
 #include "core/app_state.hpp"
 #include "core/backend.hpp"
 #include "ui/ui_legends.hpp"
-#include "imgui.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <vector>
 
+// Style values from ImHex VS Dark theme (styles.imgui); colors stay Rever's.
 void setupTheme() {
   ImGuiStyle& s = ImGui::GetStyle();
-  s.WindowPadding = ImVec2(6, 6);
-  s.FramePadding = ImVec2(6, 3);
-  s.ItemSpacing = ImVec2(6, 4);
+  s.Alpha = 1.0f;
+  s.DisabledAlpha = 0.6f;
+  s.WindowPadding = ImVec2(8, 8);
+  s.WindowRounding = 2.8f;
+  s.WindowBorderSize = 1.0f;
+  s.WindowMinSize = ImVec2(32, 32);
+  s.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+  s.ChildRounding = 0.0f;
+  s.ChildBorderSize = 1.0f;
+  s.PopupRounding = 0.0f;
+  s.PopupBorderSize = 1.0f;
+  s.FramePadding = ImVec2(4, 3);
+  s.FrameRounding = 2.2f;
+  s.FrameBorderSize = 1.0f;
+  s.ItemSpacing = ImVec2(8, 4);
   s.ItemInnerSpacing = ImVec2(4, 4);
-  s.ScrollbarSize = 12;
-  s.ScrollbarRounding = 0;
-  s.GrabMinSize = 8;
-  s.GrabRounding = 0;
-  s.WindowRounding = 0;
-  s.FrameRounding = 0;
-  s.TabRounding = 0;
-  s.WindowBorderSize = 1;
-  s.FrameBorderSize = 0;
-  s.TabBorderSize = 1;
-  s.SeparatorTextBorderSize = 1;
-  s.DockingSeparatorSize = 1;
+  s.CellPadding = ImVec2(4, 2);
+  s.IndentSpacing = 8.0f;
+  s.ScrollbarSize = 14.0f;
+  s.ScrollbarRounding = 9.0f;
+  s.GrabMinSize = 7.6f;
+  s.GrabRounding = 5.0f;
+  s.TabRounding = 4.0f;
+  s.TabBorderSize = 1.0f;
+  s.SeparatorTextBorderSize = 1.0f;
+  s.DockingSeparatorSize = 1.0f;
 
   ImVec4* c = s.Colors;
   ImVec4 black(0, 0, 0, 1);
@@ -98,15 +110,21 @@ void drawHexEditor() {
   float cw = ImGui::CalcTextSize("0").x;
   float lh = ImGui::GetTextLineHeightWithSpacing();
   size_t totalLines = (g.bytes.size() + bpl - 1) / bpl;
-  ImGui::TextColored(ImVec4(0.27f,0.27f,0.27f,1), "Offset    ");
-  ImGui::SameLine();
+  const float addrW = cw * 8.5f;
+  const float hexByteW = cw * 2.2f;
+  const float midGap = cw * 1.2f;
+  const float hexStart = addrW + midGap;
+  const float asciiStart = hexStart + 8 * hexByteW + midGap + 8 * hexByteW + midGap;
+  ImGui::TextColored(ImVec4(0.27f,0.27f,0.27f,1), "Offset");
   for (int i = 0; i < 16; ++i) {
+    float x = hexStart + (i < 8 ? i : 8 + (i - 8)) * hexByteW;
+    if (i == 8) x = hexStart + 8 * hexByteW + midGap;
+    ImGui::SameLine(x);
     char buf[4]; snprintf(buf, sizeof(buf), "%02X", i);
     ImGui::TextColored(ImVec4(0.27f,0.27f,0.27f,1), "%s", buf);
-    ImGui::SameLine();
-    if (i == 7) { ImGui::TextColored(ImVec4(0,0,0,1), " "); ImGui::SameLine(); }
   }
-  ImGui::TextColored(ImVec4(0.27f,0.27f,0.27f,1), " ASCII");
+  ImGui::SameLine(asciiStart);
+  ImGui::TextColored(ImVec4(0.27f,0.27f,0.27f,1), "ASCII");
   ImGui::Separator();
   ImGui::BeginChild("HexScroll", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoMove);
   ImGuiListClipper clipper;
@@ -123,15 +141,14 @@ void drawHexEditor() {
                           IM_COL32(10, 10, 10, 255));
       char addr[16]; snprintf(addr, sizeof(addr), "%08zx", off);
       ImGui::TextColored(ImVec4(0.27f,0.27f,0.27f,1), "%s", addr);
-      ImGui::SameLine();
-      ImGui::TextColored(ImVec4(0,0,0,1), " "); ImGui::SameLine();
+      ImGui::SameLine(hexStart);
       for (int b = 0; b < bpl && off + b < g.bytes.size(); ++b) {
         uint8_t v = g.bytes[off + b];
         size_t addr2 = off + b;
         bool isCursor = (addr2 == g.hexCursor);
         bool inSel = (sa != sb && addr2 >= sa && addr2 <= sb);
         bool isMod = g.hexModified.count(addr2) > 0;
-        if (b == 8) { ImGui::TextColored(ImVec4(0,0,0,1), " "); ImGui::SameLine(); }
+        if (b == 8) ImGui::SameLine(hexStart + 8 * hexByteW + midGap);
         if (isCursor || inSel) {
           ImVec2 p = ImGui::GetCursorScreenPos();
           ImU32 col = isCursor ? IM_COL32(51,51,51,255) : IM_COL32(26,26,46,255);
@@ -156,7 +173,7 @@ void drawHexEditor() {
       }
       int remaining = bpl - (int)(std::min(g.bytes.size() - off, (size_t)bpl));
       for (int b = 0; b < remaining; ++b) { ImGui::TextColored(ImVec4(0,0,0,1), "   "); ImGui::SameLine(); }
-      ImGui::TextColored(ImVec4(0,0,0,1), " "); ImGui::SameLine();
+      ImGui::SameLine(asciiStart);
       char ascii[32]; memset(ascii, 0, sizeof(ascii));
       for (int b = 0; b < bpl && off + b < g.bytes.size(); ++b) {
         uint8_t v = g.bytes[off + b];
@@ -213,12 +230,16 @@ void drawInspector() {
   ImGui::TextColored(ImVec4(0.4f,0.4f,0.4f,1), "Offset: 0x%zx", g.hexCursor);
   ImGui::Separator();
   if (ImGui::BeginTable("##insp", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
-    ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 100);
+    ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, Design::InspectorTypeCol);
     ImGui::TableSetupColumn("Value");
     for (auto& r : g.inspectorData) {
       ImGui::TableNextRow();
-      ImGui::TableNextColumn(); ImGui::TextColored(ImVec4(0.4f,0.4f,0.4f,1), "%s", r.type_name.c_str());
-      ImGui::TableNextColumn(); ImGui::TextColored(ImVec4(0.67f,0.67f,0.67f,1), "%s", r.value.c_str());
+      ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
+      ImGui::TextColored(ImVec4(0.4f,0.4f,0.4f,1), "%s", r.type_name.c_str());
+      ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
+      ImGui::TextColored(ImVec4(0.67f,0.67f,0.67f,1), "%s", r.value.c_str());
     }
     ImGui::EndTable();
   }
@@ -229,6 +250,9 @@ void drawDisassembly() {
   if (!ImGui::Begin("Disassembly", &g.showDisassembly)) { ImGui::End(); return; }
   if (!g.fileLoaded) { ImGui::TextDisabled("No file"); ImGui::End(); return; }
   const char* archNames[] = {"x86-64","x86-32","ARM64","ARM32","MIPS"};
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Arch");
+  ImGui::SameLine(Design::ToolbarCol1);
   ImGui::SetNextItemWidth(100);
   if (ImGui::BeginCombo("##arch", archNames[g.disasmArch])) {
     for (int i = 0; i < 5; ++i)
@@ -236,8 +260,11 @@ void drawDisassembly() {
     ImGui::EndCombo();
   }
   ImGui::SameLine();
-  ImGui::SetNextItemWidth(80);
-  ImGui::InputText("Base", g.disasmBaseAddr, sizeof(g.disasmBaseAddr));
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Base");
+  ImGui::SameLine(Design::ToolbarCol2);
+  ImGui::SetNextItemWidth(90);
+  ImGui::InputText("##base", g.disasmBaseAddr, sizeof(g.disasmBaseAddr));
   ImGui::SameLine();
   if (ImGui::Button("Disassemble")) {
     uint64_t base = strtoull(g.disasmBaseAddr, nullptr, 16);
@@ -253,16 +280,16 @@ void drawDisassembly() {
     for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
       auto& l = g.disasmLines[i];
       ImGui::TextColored(ImVec4(0.33f,0.33f,0.33f,1), "%08llx", (unsigned long long)l.address);
-      ImGui::SameLine();
+      ImGui::SameLine(Design::DisasmAddrW);
       ImGui::TextColored(ImVec4(0.27f,0.27f,0.27f,1), "%-24s", l.bytes_hex.c_str());
-      ImGui::SameLine();
+      ImGui::SameLine(Design::DisasmAddrW + Design::DisasmBytesW);
       bool isBranch = (l.mnemonic[0]=='j'||l.mnemonic=="call"||l.mnemonic=="ret"||
                         l.mnemonic=="syscall"||l.mnemonic[0]=='b');
       if (isBranch)
         ImGui::TextColored(ImVec4(0.67f,0.47f,0.47f,1), "%-8s", l.mnemonic.c_str());
       else
         ImGui::TextColored(ImVec4(0.53f,0.53f,0.73f,1), "%-8s", l.mnemonic.c_str());
-      ImGui::SameLine();
+      ImGui::SameLine(Design::DisasmAddrW + Design::DisasmBytesW + Design::DisasmMnemW);
       ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1), "%s", l.operands.c_str());
     }
   }
@@ -377,14 +404,19 @@ void drawEntropy() {
 void drawStrings() {
   if (!ImGui::Begin("Strings", &g.showStrings)) { ImGui::End(); return; }
   if (!g.fileLoaded) { ImGui::TextDisabled("No file"); ImGui::End(); return; }
-  ImGui::SetNextItemWidth(40);
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Min length");
+  ImGui::SameLine(Design::InlineLabel1Col);
+  ImGui::SetNextItemWidth(48);
   if (ImGui::InputInt("##minlen", &g.stringsMinLen, 0, 0)) {
     if (g.stringsMinLen < 2) g.stringsMinLen = 2;
     g.strings = extract_strings(g.bytes.data(), g.bytes.size(), g.stringsMinLen);
   }
-  ImGui::SameLine(); ImGui::Text("min");
   ImGui::SameLine();
-  ImGui::SetNextItemWidth(-60);
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Filter");
+  ImGui::SameLine(Design::InlineLabel2Col);
+  ImGui::SetNextItemWidth(-70);
   ImGui::InputText("##filter", g.stringsFilter, sizeof(g.stringsFilter));
   ImGui::SameLine();
   int count = 0;
@@ -497,9 +529,15 @@ void drawSearch() {
   if (!ImGui::Begin("Search", &g.showSearch)) { ImGui::End(); return; }
   if (!g.fileLoaded) { ImGui::TextDisabled("No file"); ImGui::End(); return; }
   const char* modes[] = {"Text", "Hex"};
-  ImGui::SetNextItemWidth(60);
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Mode");
+  ImGui::SameLine(Design::SearchModeCol);
+  ImGui::SetNextItemWidth(64);
   ImGui::Combo("##mode", &g.searchMode, modes, 2);
   ImGui::SameLine();
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Pattern");
+  ImGui::SameLine(Design::SearchPatternCol);
   ImGui::SetNextItemWidth(-200);
   bool enter = ImGui::InputText("##pat", g.searchPattern, sizeof(g.searchPattern), ImGuiInputTextFlags_EnterReturnsTrue);
   ImGui::SameLine();
@@ -559,6 +597,10 @@ void drawSearch() {
 
 void drawBookmarks() {
   if (!ImGui::Begin("Bookmarks", &g.showBookmarks)) { ImGui::End(); return; }
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Note");
+  ImGui::SameLine(Design::BookmarksNoteCol);
+  ImGui::SetNextItemWidth(-60);
   ImGui::InputTextWithHint("##note", "Note...", g.bookmarkNote, sizeof(g.bookmarkNote));
   ImGui::SameLine();
   if (ImGui::Button("+ Add")) {
@@ -603,17 +645,30 @@ void drawInfo() {
   if (!ImGui::Begin("Info", &g.showInfo)) { ImGui::End(); return; }
   if (!g.fileLoaded) { ImGui::TextDisabled("No file"); ImGui::End(); return; }
   ImGui::SeparatorText("File Info");
-  ImGui::TextColored(ImVec4(0.53f,0.53f,0.53f,1), "Format:  %s", g.fileInfo.format.c_str());
-  ImGui::TextColored(ImVec4(0.53f,0.53f,0.53f,1), "Arch:    %s", g.fileInfo.arch.c_str());
-  ImGui::TextColored(ImVec4(0.53f,0.53f,0.53f,1), "Bits:    %s", g.fileInfo.bits.c_str());
-  ImGui::TextColored(ImVec4(0.53f,0.53f,0.53f,1), "Endian:  %s", g.fileInfo.endian.c_str());
-  ImGui::TextColored(ImVec4(0.53f,0.53f,0.53f,1), "Entry:   0x%llx", (unsigned long long)g.fileInfo.entry_point);
-  ImGui::TextColored(ImVec4(0.53f,0.53f,0.53f,1), "Size:    %zu bytes", g.fileInfo.file_size);
+  if (Design::BeginFormTable("##fileinfo")) {
+    Design::FormTableSetupColumns();
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%s", g.fileInfo.format.c_str());
+    Design::FormRow("Format:", buf);
+    snprintf(buf, sizeof(buf), "%s", g.fileInfo.arch.c_str());
+    Design::FormRow("Arch:", buf);
+    snprintf(buf, sizeof(buf), "%s", g.fileInfo.bits.c_str());
+    Design::FormRow("Bits:", buf);
+    snprintf(buf, sizeof(buf), "%s", g.fileInfo.endian.c_str());
+    Design::FormRow("Endian:", buf);
+    snprintf(buf, sizeof(buf), "0x%llx", (unsigned long long)g.fileInfo.entry_point);
+    Design::FormRow("Entry:", buf);
+    snprintf(buf, sizeof(buf), "%zu bytes", g.fileInfo.file_size);
+    Design::FormRow("Size:", buf);
+    Design::EndFormTable();
+  }
   ImGui::SeparatorText("Hashes");
-  ImGui::TextColored(ImVec4(0.53f,0.53f,0.53f,1), "MD5:");
-  ImGui::SameLine(); ImGui::TextColored(ImVec4(0.67f,0.67f,0.67f,1), "%s", g.md5Hash.c_str());
-  ImGui::TextColored(ImVec4(0.53f,0.53f,0.53f,1), "SHA-256:");
-  ImGui::TextColored(ImVec4(0.67f,0.67f,0.67f,1), "%s", g.sha256Hash.c_str());
+  if (Design::BeginFormTable("##hashes")) {
+    Design::FormTableSetupColumns();
+    Design::FormRow("MD5:", g.md5Hash.c_str());
+    Design::FormRow("SHA-256:", g.sha256Hash.c_str());
+    Design::EndFormTable();
+  }
   ImGui::End();
 }
 
@@ -624,7 +679,10 @@ void drawGotoPopup() {
   }
   if (ImGui::BeginPopupModal("Goto Address", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::Text("Enter hex offset:");
+    ImGui::Spacing();
+    ImGui::SetNextItemWidth(Design::PopupInputWidth);
     bool enter = ImGui::InputText("##goto", g.gotoAddr, sizeof(g.gotoAddr), ImGuiInputTextFlags_EnterReturnsTrue);
+    ImGui::Spacing();
     if (enter || ImGui::Button("Go")) {
       size_t off = strtoull(g.gotoAddr, nullptr, 16);
       if (off < g.bytes.size()) {

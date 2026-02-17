@@ -15,29 +15,6 @@ set(CAPSTONE_BUILD_TESTS OFF CACHE BOOL "")
 set(CAPSTONE_BUILD_CSTOOL OFF CACHE BOOL "")
 FetchContent_MakeAvailable(capstone)
 
-# ── Qt6 version ──────────────────────────────────────────────────────────────
-find_package(Qt6 COMPONENTS Core Gui Widgets)
-
-if(Qt6_FOUND)
-  add_executable(rever MACOSX_BUNDLE
-    src/main.cpp
-    src/core/backend.cpp
-  )
-  set_target_properties(rever PROPERTIES
-    AUTOMOC ON
-    MACOSX_BUNDLE_GUI_IDENTIFIER "com.rever.app"
-    MACOSX_BUNDLE_BUNDLE_NAME "Rever"
-    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-  )
-  target_include_directories(rever PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${capstone_SOURCE_DIR}/include
-  )
-  target_link_libraries(rever PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets capstone)
-  target_compile_definitions(rever PRIVATE REVER_PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-endif()
-
 # ── ImGui + GLFW version ────────────────────────────────────────────────────
 FetchContent_Declare(glfw
   GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -63,6 +40,7 @@ add_executable(rever-imgui MACOSX_BUNDLE
   src/core/backend.cpp
   src/viz/gl_helpers.cpp
   src/viz/trigram.cpp
+  src/viz/range_selector.cpp
   src/viz/digram.cpp
   src/ui/ui_legends.cpp
   src/ui/ui_panels.cpp
@@ -105,3 +83,4 @@ add_custom_command(TARGET rever-imgui POST_BUILD
     "${CMAKE_CURRENT_SOURCE_DIR}/fonts/RobotoMono.ttf"
     "$<TARGET_BUNDLE_DIR:rever-imgui>/Contents/Resources/RobotoMono.ttf"
 )
+

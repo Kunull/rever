@@ -15,7 +15,7 @@
 in float vFilePos;
 in float vDensity;
 uniform int invertColors;
-uniform int colorMode;  // 0 = single, 1 = Fyre (violet->..->orange). Brightness scales whole gradient toward black.
+uniform int colorMode;  // 0 = single, 1 = Fyre (violet->..->red). Brightness scales whole gradient toward black.
 uniform float c_brightness;
 out vec4 oColor;
 
@@ -25,21 +25,19 @@ vec3 getGradientColor(float t) {
     return vec3(0.6, 0.6, 0.6);  // single neutral
   }
   if (colorMode == 1) {
-    // Fyre: violet -> blue -> light blue -> white -> yellow -> red -> orange (no green)
+    // Fyre: violet -> blue -> light blue -> white -> yellow -> red; purple and red get more range
     vec3 violet = vec3(0.58, 0.0, 0.83);
     vec3 blue   = vec3(0.2, 0.5, 1.0);
     vec3 lblue  = vec3(0.4, 0.75, 1.0);
     vec3 white  = vec3(1.0, 1.0, 1.0);
     vec3 yellow = vec3(1.0, 1.0, 0.3);
     vec3 red    = vec3(1.0, 0.15, 0.1);
-    vec3 orange = vec3(1.0, 0.45, 0.0);
-    float s = 1.0 / 6.0;
-    if (t < s) return mix(violet, blue, t / s);
-    if (t < 2.0*s) return mix(blue, lblue, (t - s) / s);
-    if (t < 3.0*s) return mix(lblue, white, (t - 2.0*s) / s);
-    if (t < 4.0*s) return mix(white, yellow, (t - 3.0*s) / s);
-    if (t < 5.0*s) return mix(yellow, red, (t - 4.0*s) / s);
-    return mix(red, orange, (t - 5.0*s) / s);
+    float t0 = 0.0, t1 = 0.22, t2 = 0.38, t3 = 0.54, t4 = 0.70, t5 = 1.0;
+    if (t < t1) return mix(violet, blue, (t - t0) / (t1 - t0));
+    if (t < t2) return mix(blue, lblue, (t - t1) / (t2 - t1));
+    if (t < t3) return mix(lblue, white, (t - t2) / (t3 - t2));
+    if (t < t4) return mix(white, yellow, (t - t3) / (t4 - t3));
+    return mix(yellow, red, (t - t4) / (t5 - t4));
   }
   return vec3(0.5, 0.5, 0.5);
 }

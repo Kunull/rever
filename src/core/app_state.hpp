@@ -37,6 +37,14 @@ struct AppState {
   uint32_t histMax = 0;
   std::vector<float> entropy;
 
+  // Viz byte range: which bytes are rendered in Trigram/Bigram. 0,0 = whole file.
+  size_t vizRangeStart = 0;
+  size_t vizRangeEnd = 0;   // 0 means use bytes.size()
+
+  // Focus range (strip 1): the "window" shown in strip 2. focusEnd==0 means whole file.
+  size_t focusStart = 0;
+  size_t focusEnd = 0;
+
   // Trigram (3D point cloud)
   GLuint trigramVAO = 0, trigramVBO = 0;
   GLuint trigramShader = 0;
@@ -123,6 +131,8 @@ struct AppState {
   bool showSearch = true;
   bool showBookmarks = true;
   bool showInfo = true;
+
+  bool openTrigramSettingsPopup = false;
 };
 
 extern AppState g;

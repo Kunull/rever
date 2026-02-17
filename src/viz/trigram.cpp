@@ -1,6 +1,9 @@
 #include "viz/trigram.hpp"
 #include "core/app_state.hpp"
+#include "ui/design.hpp"
+#include "viz/digram.hpp"
 #include "viz/gl_helpers.hpp"
+#include "viz/range_selector.hpp"
 #include "imgui.h"
 #include "imgui_internal.h"
 #ifdef __APPLE__
@@ -24,13 +27,16 @@ static void drawGradientStrip(ImVec2 p_min, ImVec2 p_max, int mode) {
     return;
   }
   if (mode == 1) {
-    // Fyre: violet -> blue -> lblue -> white -> yellow -> red -> orange (no green)
-    ImU32 stops[] = { col(0.58f, 0.f, 0.83f), col(0.2f, 0.5f, 1.f), col(0.4f, 0.75f, 1.f), col(1.f, 1.f, 1.f), col(1.f, 1.f, 0.3f), col(1.f, 0.15f, 0.1f), col(1.f, 0.45f, 0.f) };
-    float w = (p_max.x - p_min.x) / 6.f;
-    for (int i = 0; i < 6; i++) {
-      ImVec2 a(p_min.x + w * (float)i, p_min.y);
-      ImVec2 b(p_min.x + w * (float)(i + 1), p_max.y);
-      dl->AddRectFilledMultiColor(a, b, stops[i], stops[i + 1], stops[i + 1], stops[i]);
+    // Fyre: violet -> blue -> lblue -> white -> yellow -> red; purple and red get more space (match shader)
+    ImU32 stops[] = { col(0.58f, 0.f, 0.83f), col(0.2f, 0.5f, 1.f), col(0.4f, 0.75f, 1.f), col(1.f, 1.f, 1.f), col(1.f, 1.f, 0.3f), col(1.f, 0.15f, 0.1f) };
+    float totalW = p_max.x - p_min.x;
+    float segW[5] = { 0.22f, 0.16f, 0.16f, 0.16f, 0.30f }; // same as shader t1-t0, t2-t1, ...
+    float x = 0.f;
+    for (int i = 0; i < 5; i++) {
+      float x0 = p_min.x + totalW * x;
+      x += segW[i];
+      float x1 = p_min.x + totalW * x;
+      dl->AddRectFilledMultiColor(ImVec2(x0, p_min.y), ImVec2(x1, p_max.y), stops[i], stops[i + 1], stops[i + 1], stops[i]);
     }
   }
 }
@@ -52,7 +58,7 @@ void main() {
 })";
 
 // Gradient template: see shaders/trigram_fragment_gradient_template.glsl
-// colorMode 0 = single, 1 = Fyre (violet->..->orange, no green). Brightness scales whole gradient toward black.
+// colorMode 0 = single, 1 = Fyre (violet->..->red, no green). Brightness scales whole gradient toward black.
 static const char* trigramFS = R"(#version 150
 in float vFilePos;
 in float vDensity;
@@ -69,14 +75,13 @@ vec3 getGradientColor(float t) {
     vec3 white  = vec3(1.0, 1.0, 1.0);
     vec3 yellow = vec3(1.0, 1.0, 0.3);
     vec3 red    = vec3(1.0, 0.15, 0.1);
-    vec3 orange = vec3(1.0, 0.45, 0.0);
-    float s = 1.0 / 6.0;
-    if (t < s) return mix(violet, blue, t / s);
-    if (t < 2.0*s) return mix(blue, lblue, (t - s) / s);
-    if (t < 3.0*s) return mix(lblue, white, (t - 2.0*s) / s);
-    if (t < 4.0*s) return mix(white, yellow, (t - 3.0*s) / s);
-    if (t < 5.0*s) return mix(yellow, red, (t - 4.0*s) / s);
-    return mix(red, orange, (t - 5.0*s) / s);
+    // Non-uniform: purple/violet and red get more range so more bins have those colors
+    float t0 = 0.0, t1 = 0.22, t2 = 0.38, t3 = 0.54, t4 = 0.70, t5 = 1.0;
+    if (t < t1) return mix(violet, blue, (t - t0) / (t1 - t0));
+    if (t < t2) return mix(blue, lblue, (t - t1) / (t2 - t1));
+    if (t < t3) return mix(lblue, white, (t - t2) / (t3 - t2));
+    if (t < t4) return mix(white, yellow, (t - t3) / (t4 - t3));
+    return mix(yellow, red, (t - t4) / (t5 - t4));
   }
   return vec3(0.5, 0.5, 0.5);
 }
@@ -267,9 +272,13 @@ static void trigramRenderFBO(int renderW, int renderH) {
   glUniform1f(glGetUniformLocation(g.trigramShader, "pointSize"), 1.0f);
   glUniform1i(glGetUniformLocation(g.trigramShader, "invertColors"), g.trigramInvertColors ? 1 : 0);
   glUniform1i(glGetUniformLocation(g.trigramShader, "colorMode"), g.trigramColorMode);
-  float b = std::max(0.0f, std::min(100.0f, g.trigramBrightness));
-  float c_brightness = (b <= 0.0f) ? 0.0f : (float)(b * b * b) / (float)std::max(g.trigramVertCount, 1);
-  c_brightness = std::min(c_brightness, 1.0f);
+  // Option 3: min/max brightness from data. 0 = lowest, 100 = highest (data-derived).
+  float minBrightness = 0.0f;
+  float maxBrightness = (g.trigramVertCount > 0)
+      ? std::min(1.0f, 1000000.0f / (float)g.trigramVertCount)  // avoid blow-out with additive blend
+      : 1.0f;
+  float u = std::max(0.0f, std::min(100.0f, g.trigramBrightness)) / 100.0f;
+  float c_brightness = minBrightness + u * (maxBrightness - minBrightness);
   glUniform1f(glGetUniformLocation(g.trigramShader, "c_brightness"), c_brightness);
 
   glBindVertexArray(g.trigramVAO);
@@ -329,7 +338,18 @@ void initTrigramGL() {
 
 void buildTrigramGeometry() {
   if (g.bytes.size() < 3) return;
-  size_t n = g.bytes.size() - 2;
+  // Viz range must be inside focus (first slider). Never render more than what the first slider selected.
+  size_t focusEnd = g.focusEnd != 0 ? g.focusEnd : g.bytes.size();
+  size_t focusStart = g.focusStart;
+  size_t end = g.vizRangeEnd != 0 ? g.vizRangeEnd : focusEnd;
+  size_t start = g.vizRangeStart;
+  start = std::max(start, focusStart);
+  end = std::min(end, focusEnd);
+  if (start >= end || end - start < 3) {
+    g.trigramVertCount = 0;
+    return;
+  }
+  size_t n = end - start - 2;
   const int BINS = 32;
   const int BINS3 = BINS * BINS * BINS;
   std::vector<int> binCount(BINS3, 0);
@@ -339,10 +359,12 @@ void buildTrigramGeometry() {
   };
   std::vector<TriVert> verts(n);
 
+  size_t fileSz = g.bytes.size();
   for (size_t i = 0; i < n; i++) {
-    float x = (float(g.bytes[i]) + 0.5f) / 128.0f - 1.0f;
-    float y = (float(g.bytes[i + 1]) + 0.5f) / 128.0f - 1.0f;
-    float z = (float(g.bytes[i + 2]) + 0.5f) / 128.0f - 1.0f;
+    size_t j = start + i;
+    float x = (float(g.bytes[j]) + 0.5f) / 128.0f - 1.0f;
+    float y = (float(g.bytes[j + 1]) + 0.5f) / 128.0f - 1.0f;
+    float z = (float(g.bytes[j + 2]) + 0.5f) / 128.0f - 1.0f;
     int bx = (int)((x + 1.0f) * 0.5f * BINS);
     bx = std::max(0, std::min(BINS - 1, bx));
     int by = (int)((y + 1.0f) * 0.5f * BINS);
@@ -354,7 +376,8 @@ void buildTrigramGeometry() {
     verts[i].x = x;
     verts[i].y = y;
     verts[i].z = z;
-    verts[i].pos = (n > 1) ? (float(i) / float(n - 1)) : 0.0f;
+    // Color by position in file (0=start of file, 1=end) so colors stay stable when the slider moves.
+    verts[i].pos = (fileSz > 1) ? (float(j) / (float)(fileSz - 1)) : 0.0f;
     verts[i].density = 0.0f;
   }
 
@@ -406,27 +429,28 @@ void drawTrigram() {
     ImGui::End();
     return;
   }
-  if (!g.fileLoaded || g.trigramVertCount == 0 || !g.trigramShader) {
+  if (!g.fileLoaded) {
     ImGui::TextDisabled("No data");
     ImGui::End();
     return;
   }
+  if (!g.trigramShader) initTrigramGL();
+  size_t fileSz = g.bytes.size();
 
-  float availX = ImGui::GetContentRegionAvail().x;
-  float btnW = ImGui::CalcTextSize("Settings").x + ImGui::GetStyle().FramePadding.x * 2.0f;
-  if (availX > btnW)
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + availX - btnW);
-  if (ImGui::Button("Settings")) {
+  if (g.openTrigramSettingsPopup) {
+    g.openTrigramSettingsPopup = false;
     ImGui::OpenPopup("TrigramSettings");
   }
   if (ImGui::BeginPopup("TrigramSettings")) {
     if (ImGui::Checkbox("Auto-rotate", &g.trigramAutoRotate)) g.trigramDirty = true;
     if (ImGui::Checkbox("Invert colors (blue = start, maroon = end)", &g.trigramInvertColors)) g.trigramDirty = true;
+    ImGui::Spacing();
     const char* gradientNames[] = { "Single", "Fyre" };
     const float stripW = 60.f;
     const float stripH = ImGui::GetFrameHeight() * 0.6f;
+    ImGui::AlignTextToFramePadding();
     ImGui::Text("Gradient");
-    ImGui::SameLine();
+    ImGui::SameLine(Design::LabelWidth);
     ImVec2 stripPos = ImGui::GetCursorScreenPos();
     drawGradientStrip(stripPos, ImVec2(stripPos.x + stripW, stripPos.y + stripH), g.trigramColorMode);
     ImGui::Dummy(ImVec2(stripW, stripH));
@@ -447,30 +471,52 @@ void drawTrigram() {
       ImGui::EndCombo();
     }
     ImGui::TextDisabled("White from additive blend. New gradients: see shaders/trigram_fragment_gradient_template.glsl");
-    ImGui::Text("Brightness (0 = black)");
-    if (ImGui::SliderFloat("##brightness_slider", &g.trigramBrightness, 0.0f, 100.0f, "%.1f")) g.trigramDirty = true;
+    ImGui::Spacing();
+    const float kBrightnessStep = 0.1f;
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Brightness (0 = lowest, 100 = highest)");
+    ImGui::SameLine(Design::LabelWidth);
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
-    if (ImGui::Button("-")) { g.trigramBrightness = std::max(0.0f, g.trigramBrightness - 1.0f); g.trigramDirty = true; }
+    if (ImGui::Button("-")) { g.trigramBrightness = std::max(0.0f, g.trigramBrightness - kBrightnessStep); g.trigramDirty = true; }
+    ImGui::PopStyleColor(4);
     ImGui::SameLine();
+    ImGui::SetNextItemWidth(52);
     if (ImGui::InputFloat("##brightness", &g.trigramBrightness, 0.0f, 0.0f, "%.1f", ImGuiInputTextFlags_EnterReturnsTrue)) {
       g.trigramBrightness = std::max(0.0f, std::min(100.0f, g.trigramBrightness));
       g.trigramDirty = true;
     }
     ImGui::SameLine();
-    if (ImGui::Button("+")) { g.trigramBrightness = std::min(100.0f, g.trigramBrightness + 1.0f); g.trigramDirty = true; }
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+    if (ImGui::Button("+")) { g.trigramBrightness = std::min(100.0f, g.trigramBrightness + kBrightnessStep); g.trigramDirty = true; }
     ImGui::PopStyleColor(4);
-    ImGui::TextDisabled("Brightness scales whole gradient toward black. Bright spot = many null-byte trigrams at (0,0,0).");
+    ImGui::TextDisabled("Min/max are derived from current data. Bright spot = many null-byte trigrams at (0,0,0).");
     ImGui::EndPopup();
   }
 
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+  float parentW = ImGui::GetContentRegionAvail().x;
+  float stripW = (parentW * 0.075f);  // 7.5% each, 15% total
+  drawVizRangeSelector(g.bytes.data(), fileSz, stripW, [] {
+    buildTrigramGeometry();
+    buildDigramTexture();
+    g.trigramDirty = true;
+  });
+
+  ImGui::SameLine(0, 0);
+  ImGui::BeginChild("VizMain", ImVec2(0, 0), ImGuiChildFlags_None);
   ImVec2 avail = ImGui::GetContentRegionAvail();
   ImVec2 origin = ImGui::GetCursorScreenPos();
   float drawW = avail.x, drawH = avail.y;
   if (drawW < 32 || drawH < 32) {
     ImGui::Dummy(avail);
+    ImGui::EndChild();
+    ImGui::PopStyleVar();
     ImGui::End();
     return;
   }
@@ -519,5 +565,23 @@ void drawTrigram() {
                                         ImVec2(0, 1), ImVec2(1, 0));
   }
 
+  ImGui::EndChild();
+
+  // Settings button floating over the canvas (top-left so it's not hidden by dock/tabs)
+  float btnW = ImGui::CalcTextSize("Settings").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+  float btnH = ImGui::GetFrameHeight();
+  const float pad = 8.0f;
+  float btnX = origin.x + pad;
+  float btnY = origin.y + pad;
+  ImGui::SetCursorScreenPos(ImVec2(btnX, btnY));
+  ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.28f, 0.32f, 0.95f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.38f, 0.38f, 0.42f, 0.95f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.32f, 0.32f, 0.36f, 0.95f));
+  if (ImGui::Button("Settings", ImVec2(btnW, btnH))) {
+    ImGui::OpenPopup("TrigramSettings");
+  }
+  ImGui::PopStyleColor(3);
+
+  ImGui::PopStyleVar();
   ImGui::End();
 }
