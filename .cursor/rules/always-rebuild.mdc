@@ -1,0 +1,20 @@
+---
+description: Always rebuild rever-imgui after making code changes
+globs: src/**/*
+alwaysApply: true
+---
+
+# Always Rebuild After Changes
+
+When you edit source files under `src/` (or any code that affects the rever-imgui target), **always run a build afterward** so the user gets an up-to-date binary.
+
+**Build command:**
+```bash
+cd build && make rever-imgui
+```
+
+Run this after edits to:
+- `src/**/*.cpp`, `src/**/*.hpp`, `src/**/*.mm`
+- `CMakeLists.txt` or other build config that affects rever-imgui
+
+Do not skip the build step; the user expects a rebuild after every change.

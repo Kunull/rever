@@ -1,0 +1,20 @@
+---
+description: After making changes to Rever ImGui, run the app to verify
+globs: rever_imgui/**/*
+alwaysApply: false
+---
+
+# Rever ImGui – Run After Changes
+
+When you edit files under `rever_imgui/`, **always run the app after making changes** so the user can verify behavior.
+
+**How to run:**
+```bash
+cd rever_imgui && .venv/bin/python main.py
+```
+Run in the background (e.g. `is_background: true`) so the window stays open.
+
+If the venv is missing or deps are not installed:
+```bash
+cd rever_imgui && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -q && .venv/bin/python main.py
+```
