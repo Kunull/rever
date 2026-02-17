@@ -84,10 +84,44 @@ static void glfwDropCallback(GLFWwindow*, int count, const char* paths[]) {
   }
 }
 
+#if defined(__APPLE__) || defined(__linux__)
+#include <csignal>
+#include <cstdlib>
+#include <execinfo.h>
+#include <unistd.h>
+static void crashHandler(int sig) {
+  const char* sigName = (sig == SIGSEGV) ? "SIGSEGV" : (sig == SIGABRT) ? "SIGABRT" : "OTHER";
+  FILE* f = fopen("/tmp/rever_crash.log", "w");
+  if (f) {
+    fprintf(f, "Rever crashed: signal %d (%s)\n", sig, sigName);
+    void* buf[64];
+    int n = backtrace(buf, 64);
+    char** syms = backtrace_symbols(buf, n);
+    if (syms) {
+      for (int i = 0; i < n; i++) fprintf(f, "  %2d %s\n", i, syms[i]);
+      free(syms);
+    }
+    fflush(f);
+    fclose(f);
+  }
+  if (g_logf) {
+    fprintf(g_logf, "[rever] CRASH: signal %d (%s) - check /tmp/rever_crash.log for backtrace\n", sig, sigName);
+    fflush(g_logf);
+  }
+  fprintf(stderr, "[rever] CRASH: signal %d (%s)\n", sig, sigName);
+  signal(sig, SIG_DFL);
+  raise(sig);
+}
+#endif
+
 int main(int argc, char** argv) {
   g_logf = fopen("/tmp/rever_debug.log", "w");
   if (g_logf) setvbuf(g_logf, nullptr, _IONBF, 0);
   LOG("[rever] starting...\n");
+#if defined(__APPLE__) || defined(__linux__)
+  signal(SIGSEGV, crashHandler);
+  signal(SIGABRT, crashHandler);
+#endif
 
   if (!glfwInit()) {
     LOG("[rever] glfwInit failed!\n");
@@ -230,7 +264,7 @@ int main(int argc, char** argv) {
           { int v = g.showTrigram ? 1 : 0;     if (macosMenuItemSelect("Trigram", macosKeyNone(), &v, 1)) g.showTrigram = (v != 0); }
           if (macosMenuItem("Trigram settings...", macosKeyNone(), 0, 1)) {
             g.showTrigram = true;
-            ImGui::OpenPopup("TrigramSettings");
+            g.openTrigramSettingsPopup = true;
           }
           { int v = g.showHistogram ? 1 : 0;   if (macosMenuItemSelect("Histogram", macosKeyNone(), &v, 1)) g.showHistogram = (v != 0); }
           { int v = g.showEntropy ? 1 : 0;     if (macosMenuItemSelect("Entropy", macosKeyNone(), &v, 1)) g.showEntropy = (v != 0); }
@@ -297,7 +331,7 @@ int main(int argc, char** argv) {
         ImGui::MenuItem("Trigram", nullptr, &g.showTrigram);
         if (ImGui::MenuItem("Trigram settings...")) {
           g.showTrigram = true;
-          ImGui::OpenPopup("TrigramSettings");
+          g.openTrigramSettingsPopup = true;
         }
         ImGui::MenuItem("Histogram", nullptr, &g.showHistogram);
         ImGui::MenuItem("Entropy", nullptr, &g.showEntropy);

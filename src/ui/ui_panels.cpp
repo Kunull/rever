@@ -408,7 +408,7 @@ void drawStrings() {
   ImGui::Text("Min length");
   ImGui::SameLine(Design::InlineLabel1Col);
   ImGui::SetNextItemWidth(48);
-  if (ImGui::InputInt("##minlen", &g.stringsMinLen, 0, 0)) {
+  if (ImGui::InputInt("##minlen", &g.stringsMinLen, 1, 10)) {
     if (g.stringsMinLen < 2) g.stringsMinLen = 2;
     g.strings = extract_strings(g.bytes.data(), g.bytes.size(), g.stringsMinLen);
   }

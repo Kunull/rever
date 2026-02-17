@@ -19,7 +19,7 @@
 
 namespace {
 
-// Draw a horizontal gradient strip for combo preview. mode: 0 = Single, 1 = Fyre.
+// Draw a horizontal gradient strip for combo preview. mode: 0 = Single, 1 = Fyre, 2 = Blackwall2077.
 static void drawGradientStrip(ImVec2 p_min, ImVec2 p_max, int mode) {
   ImDrawList* dl = ImGui::GetWindowDrawList();
   auto col = [](float r, float g, float b) { return IM_COL32((int)(r * 255), (int)(g * 255), (int)(b * 255), 255); };
@@ -37,6 +37,21 @@ static void drawGradientStrip(ImVec2 p_min, ImVec2 p_max, int mode) {
       float x0 = p_min.x + totalW * x;
       x += segW[i];
       float x1 = p_min.x + totalW * x;
+      dl->AddRectFilledMultiColor(ImVec2(x0, p_min.y), ImVec2(x1, p_max.y), stops[i], stops[i + 1], stops[i + 1], stops[i]);
+    }
+    return;
+  }
+  if (mode == 2) {
+    // Blackwall2077: deep red #d40004 -> darker merge -> electric blue #5ff5ff
+    ImU32 stops[] = {
+      col(0.831f, 0.0f, 0.016f),   // #d40004 deep red
+      col(0.28f, 0.08f, 0.18f),    // darker where they merge (not black)
+      col(0.373f, 0.961f, 1.0f)    // #5ff5ff electric blue
+    };
+    float totalW = p_max.x - p_min.x;
+    for (int i = 0; i < 2; i++) {
+      float x0 = p_min.x + totalW * (float)i / 2.f;
+      float x1 = p_min.x + totalW * (float)(i + 1) / 2.f;
       dl->AddRectFilledMultiColor(ImVec2(x0, p_min.y), ImVec2(x1, p_max.y), stops[i], stops[i + 1], stops[i + 1], stops[i]);
     }
   }
@@ -59,7 +74,7 @@ void main() {
 })";
 
 // Gradient template: see shaders/trigram_fragment_gradient_template.glsl
-// colorMode 0 = single, 1 = Fyre (violet->..->red, no green). Brightness scales whole gradient toward black.
+// colorMode 0 = single, 1 = Fyre, 2 = Blackwall2077. Brightness scales whole gradient toward black.
 static const char* trigramFS = R"(#version 150
 in float vFilePos;
 in float vDensity;
@@ -76,13 +91,21 @@ vec3 getGradientColor(float t) {
     vec3 white  = vec3(1.0, 1.0, 1.0);
     vec3 yellow = vec3(1.0, 1.0, 0.3);
     vec3 red    = vec3(1.0, 0.15, 0.1);
-    // Non-uniform: purple/violet and red get more range so more bins have those colors
     float t0 = 0.0, t1 = 0.22, t2 = 0.38, t3 = 0.54, t4 = 0.70, t5 = 1.0;
     if (t < t1) return mix(violet, blue, (t - t0) / (t1 - t0));
     if (t < t2) return mix(blue, lblue, (t - t1) / (t2 - t1));
     if (t < t3) return mix(lblue, white, (t - t2) / (t3 - t2));
     if (t < t4) return mix(white, yellow, (t - t3) / (t4 - t3));
     return mix(yellow, red, (t - t4) / (t5 - t4));
+  }
+  if (colorMode == 2) {
+    // Blackwall2077: deep red #d40004 -> darker merge -> electric blue #5ff5ff
+    vec3 red   = vec3(0.831, 0.0, 0.016);   // #d40004
+    vec3 merge = vec3(0.28, 0.08, 0.18);    // darker where they meet, not black
+    vec3 blue  = vec3(0.373, 0.961, 1.0);   // #5ff5ff
+    float t1 = 0.5, t2 = 1.0;
+    if (t < t1) return mix(red, merge, t / t1);
+    return mix(merge, blue, (t - t1) / (t2 - t1));
   }
   return vec3(0.5, 0.5, 0.5);
 }
@@ -468,22 +491,32 @@ void buildTrigramGeometry() {
   g.trigramVertCount = (int)uploadCount;
 }
 
+#define TRIGRAM_LOG(msg) do { \
+  if (g_logf) { fprintf(g_logf, "[rever] trigram settings: " msg "\n"); fflush(g_logf); } \
+  fprintf(stderr, "[rever] trigram settings: " msg "\n"); \
+} while (0)
+
 void drawTrigramSettingsPopupContent() {
+  TRIGRAM_LOG("step 1: enter");
   if (ImGui::Checkbox("Auto-rotate", &g.trigramAutoRotate)) g.trigramDirty = true;
+  TRIGRAM_LOG("step 2: after Auto-rotate checkbox");
   if (ImGui::Checkbox("Invert colors (blue = start, maroon = end)", &g.trigramInvertColors)) g.trigramDirty = true;
+  TRIGRAM_LOG("step 3: after Invert checkbox");
   ImGui::Spacing();
-  const char* gradientNames[] = { "Single", "Fyre" };
-  const int numGradients = 2;
+  const char* gradientNames[] = { "Single", "Fyre", "Blackwall2077" };
+  const int numGradients = 3;
   int mode = std::max(0, std::min(g.trigramColorMode, numGradients - 1));
   const float stripW = 60.f;
   const float stripH = ImGui::GetFrameHeight() * 0.6f;
   ImGui::AlignTextToFramePadding();
   ImGui::Text("Gradient");
   ImGui::SameLine(Design::LabelWidth);
+  TRIGRAM_LOG("step 4: before drawGradientStrip");
   ImVec2 stripPos = ImGui::GetCursorScreenPos();
   drawGradientStrip(stripPos, ImVec2(stripPos.x + stripW, stripPos.y + stripH), mode);
   ImGui::Dummy(ImVec2(stripW, stripH));
   ImGui::SameLine();
+  TRIGRAM_LOG("step 5: before BeginCombo gradient");
   if (ImGui::BeginCombo("##gradient", gradientNames[mode])) {
     for (int i = 0; i < numGradients; i++) {
       ImGui::PushID(i);
@@ -499,6 +532,7 @@ void drawTrigramSettingsPopupContent() {
     }
     ImGui::EndCombo();
   }
+  TRIGRAM_LOG("step 6: after gradient combo");
   ImGui::TextDisabled("White from additive blend. New gradients: see shaders/trigram_fragment_gradient_template.glsl");
   ImGui::Spacing();
   ImGui::TextDisabled("Trackpad: drag = rotate, two-finger slide = pan (slow), pinch = zoom. Cmd+scroll = zoom (fallback).");
@@ -507,6 +541,7 @@ void drawTrigramSettingsPopupContent() {
   ImGui::AlignTextToFramePadding();
   ImGui::Text("Brightness (0 = lowest, 100 = highest)");
   ImGui::SameLine(Design::LabelWidth);
+  TRIGRAM_LOG("step 7: before brightness - button");
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
@@ -514,11 +549,12 @@ void drawTrigramSettingsPopupContent() {
   if (ImGui::Button("-")) { g.trigramBrightness = std::max(0.0f, g.trigramBrightness - kBrightnessStep); g.trigramDirty = true; }
   ImGui::PopStyleColor(4);
   ImGui::SameLine();
-  ImGui::SetNextItemWidth(52);
-  if (ImGui::InputFloat("##brightness", &g.trigramBrightness, 0.0f, 0.0f, "%.1f", ImGuiInputTextFlags_EnterReturnsTrue)) {
-    g.trigramBrightness = std::max(0.0f, std::min(100.0f, g.trigramBrightness));
+  ImGui::SetNextItemWidth(120);
+  TRIGRAM_LOG("step 8: before SliderFloat brightness");
+  if (ImGui::SliderFloat("##brightness", &g.trigramBrightness, 0.0f, 100.0f, "%.1f")) {
     g.trigramDirty = true;
   }
+  TRIGRAM_LOG("step 9: after SliderFloat brightness");
   ImGui::SameLine();
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
@@ -527,9 +563,17 @@ void drawTrigramSettingsPopupContent() {
   if (ImGui::Button("+")) { g.trigramBrightness = std::min(100.0f, g.trigramBrightness + kBrightnessStep); g.trigramDirty = true; }
   ImGui::PopStyleColor(4);
   ImGui::TextDisabled("Min/max are derived from current data. Bright spot = many null-byte trigrams at (0,0,0).");
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+  if (ImGui::Button("Close", ImVec2(-1.0f, 0.0f))) {
+    ImGui::CloseCurrentPopup();
+  }
+  TRIGRAM_LOG("step 10: done");
 }
 
 void drawTrigram() {
+  if (g_logf) { fprintf(g_logf, "[rever] drawTrigram: Begin\n"); fflush(g_logf); }
   if (!ImGui::Begin("Trigram", &g.showTrigram)) {
     ImGui::End();
     return;
@@ -641,18 +685,29 @@ void drawTrigram() {
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.28f, 0.32f, 0.95f));
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.38f, 0.38f, 0.42f, 0.95f));
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.32f, 0.32f, 0.36f, 0.95f));
+  static bool s_requestTrigramSettingsPopup = false;
   if (ImGui::Button("Settings", ImVec2(btnW, btnH))) {
-    ImGui::OpenPopup("TrigramSettings");
+    s_requestTrigramSettingsPopup = true;
+  }
+  if (g.openTrigramSettingsPopup) {
+    s_requestTrigramSettingsPopup = true;
+    g.openTrigramSettingsPopup = false;
   }
   ImGui::PopStyleColor(3);
 
   ImGui::EndChild();
 
-  // Popup anchored to canvas top-right (drawn in parent so it can extend beyond child)
-  ImVec2 canvasTR(origin.x + drawW, origin.y);
-  ImGui::SetNextWindowPos(canvasTR, ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
-  if (ImGui::BeginPopup("TrigramSettings")) {
+  // Floating popup anchored to top-right of canvas (same window as OpenPopup = parent Trigram)
+  ImVec2 popupAnchor(origin.x + drawW, origin.y);
+  ImGui::SetNextWindowPos(popupAnchor, ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
+  if (s_requestTrigramSettingsPopup) {
+    ImGui::OpenPopup("Trigram settings");
+    s_requestTrigramSettingsPopup = false;
+  }
+  if (ImGui::BeginPopup("Trigram settings", ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
     drawTrigramSettingsPopupContent();
+    ImGui::PopStyleVar();
     ImGui::EndPopup();
   }
 
