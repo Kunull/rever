@@ -119,6 +119,15 @@ void main() {
 
 static GLuint g_compositeProgram = 0;
 static GLuint g_compositeVAO = 0;
+static GLint g_compositeLocTex = -1;
+static GLint g_compositeLocBrightness = -1;
+
+// Cached uniform locations for trigram point shader (set in initTrigramGL).
+static GLint g_trigramLocMvp = -1;
+static GLint g_trigramLocPointSize = -1;
+static GLint g_trigramLocInvertColors = -1;
+static GLint g_trigramLocColorMode = -1;
+static GLint g_trigramLocCBrightness = -1;
 
 static void trigramCompositePass(int renderW, int renderH, float brightness) {
   if (!g_compositeProgram || !g_compositeVAO || !g.trigramCompositeFBO || !g.trigramCompositeTex) return;
@@ -135,8 +144,8 @@ static void trigramCompositePass(int renderW, int renderH, float brightness) {
   glClear(GL_COLOR_BUFFER_BIT);
   glDisable(GL_BLEND);
   glUseProgram(g_compositeProgram);
-  glUniform1i(glGetUniformLocation(g_compositeProgram, "uTex"), 0);
-  glUniform1f(glGetUniformLocation(g_compositeProgram, "uBrightness"), brightness);
+  glUniform1i(g_compositeLocTex, 0);
+  glUniform1f(g_compositeLocBrightness, brightness);
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, g.trigramRenderTex);
   glBindVertexArray(g_compositeVAO);
@@ -274,10 +283,10 @@ static void trigramRenderFBO(int renderW, int renderH) {
     return;
   }
   glUseProgram(g.trigramShader);
-  glUniformMatrix4fv(glGetUniformLocation(g.trigramShader, "mvp"), 1, GL_FALSE, mvp);
-  glUniform1f(glGetUniformLocation(g.trigramShader, "pointSize"), 1.0f);
-  glUniform1i(glGetUniformLocation(g.trigramShader, "invertColors"), g.trigramInvertColors ? 1 : 0);
-  glUniform1i(glGetUniformLocation(g.trigramShader, "colorMode"), g.trigramColorMode);
+  glUniformMatrix4fv(g_trigramLocMvp, 1, GL_FALSE, mvp);
+  glUniform1f(g_trigramLocPointSize, 1.0f);
+  glUniform1i(g_trigramLocInvertColors, g.trigramInvertColors ? 1 : 0);
+  glUniform1i(g_trigramLocColorMode, g.trigramColorMode);
   // Option 3: min/max brightness from data. 0 = lowest, 100 = highest (data-derived).
   float minBrightness = 0.0f;
   float maxBrightness = (g.trigramVertCount > 0)
@@ -285,7 +294,7 @@ static void trigramRenderFBO(int renderW, int renderH) {
       : 1.0f;
   float u = std::max(0.0f, std::min(100.0f, g.trigramBrightness)) / 100.0f;
   float c_brightness = minBrightness + u * (maxBrightness - minBrightness);
-  glUniform1f(glGetUniformLocation(g.trigramShader, "c_brightness"), c_brightness);
+  glUniform1f(g_trigramLocCBrightness, c_brightness);
 
   glBindVertexArray(g.trigramVAO);
   glBindBuffer(GL_ARRAY_BUFFER, g.trigramVBO);
@@ -318,15 +327,26 @@ void initTrigramGL() {
     glDeleteProgram(g.trigramShader);
     g.trigramShader = 0;
   }
+  g_trigramLocMvp = g_trigramLocPointSize = g_trigramLocInvertColors = -1;
+  g_trigramLocColorMode = g_trigramLocCBrightness = -1;
+
   GLuint vs = compileShader(GL_VERTEX_SHADER, trigramVS);
   GLuint fs = compileShader(GL_FRAGMENT_SHADER, trigramFS);
   GLuint p = linkProgram(vs, fs);
-  if (p) g.trigramShader = p;
+  if (p) {
+    g.trigramShader = p;
+    g_trigramLocMvp = glGetUniformLocation(p, "mvp");
+    g_trigramLocPointSize = glGetUniformLocation(p, "pointSize");
+    g_trigramLocInvertColors = glGetUniformLocation(p, "invertColors");
+    g_trigramLocColorMode = glGetUniformLocation(p, "colorMode");
+    g_trigramLocCBrightness = glGetUniformLocation(p, "c_brightness");
+  }
 
   if (g_compositeProgram) {
     glDeleteProgram(g_compositeProgram);
     g_compositeProgram = 0;
   }
+  g_compositeLocTex = g_compositeLocBrightness = -1;
   if (g_compositeVAO) {
     glDeleteVertexArrays(1, &g_compositeVAO);
     g_compositeVAO = 0;
@@ -336,6 +356,8 @@ void initTrigramGL() {
   GLuint cp = linkProgram(cvs, cfs);
   if (cp) {
     g_compositeProgram = cp;
+    g_compositeLocTex = glGetUniformLocation(cp, "uTex");
+    g_compositeLocBrightness = glGetUniformLocation(cp, "uBrightness");
     glGenVertexArrays(1, &g_compositeVAO);
     glBindVertexArray(g_compositeVAO);
     glBindVertexArray(0);
@@ -402,11 +424,27 @@ void buildTrigramGeometry() {
     verts[i].density = (float)binCount[bin] / (float)maxCount;
   }
 
+  // Cap vertex count for performance; subsample evenly so we span 0..n-1 (preserve red = end of range).
+  const size_t kMaxTrigramVerts = 2 * 1024 * 1024;  // 2M points
+  const TriVert* uploadVerts = verts.data();
+  size_t uploadCount = n;
+  std::vector<TriVert> subsampled;
+  if (n > kMaxTrigramVerts) {
+    subsampled.reserve(kMaxTrigramVerts);
+    // Sample indices so first and last point are always included (keeps violet→red gradient intact).
+    for (size_t k = 0; k < kMaxTrigramVerts; k++) {
+      size_t i = (k * (n - 1)) / (kMaxTrigramVerts - 1);
+      if (i < n) subsampled.push_back(verts[i]);
+    }
+    uploadVerts = subsampled.data();
+    uploadCount = subsampled.size();
+  }
+
   if (!g.trigramVAO) glGenVertexArrays(1, &g.trigramVAO);
   if (!g.trigramVBO) glGenBuffers(1, &g.trigramVBO);
   glBindVertexArray(g.trigramVAO);
   glBindBuffer(GL_ARRAY_BUFFER, g.trigramVBO);
-  glBufferData(GL_ARRAY_BUFFER, n * sizeof(TriVert), verts.data(), GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, uploadCount * sizeof(TriVert), uploadVerts, GL_STATIC_DRAW);
   if (!g.trigramShader) {
     glBindVertexArray(0);
     g.trigramVertCount = 0;
@@ -427,7 +465,7 @@ void buildTrigramGeometry() {
   glEnableVertexAttribArray(densLoc);
   glVertexAttribPointer(densLoc, 1, GL_FLOAT, GL_FALSE, sizeof(TriVert), (void*)(4 * sizeof(float)));
   glBindVertexArray(0);
-  g.trigramVertCount = (int)n;
+  g.trigramVertCount = (int)uploadCount;
 }
 
 void drawTrigramSettingsPopupContent() {
