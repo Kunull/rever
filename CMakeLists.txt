@@ -34,7 +34,7 @@ FetchContent_MakeAvailable(imgui)
 
 find_package(OpenGL REQUIRED)
 
-add_executable(rever-imgui MACOSX_BUNDLE
+set(REVER_IMGUI_SOURCES
   src/main_imgui.cpp
   src/core/app_state.cpp
   src/core/backend.cpp
@@ -44,8 +44,13 @@ add_executable(rever-imgui MACOSX_BUNDLE
   src/viz/digram.cpp
   src/ui/ui_legends.cpp
   src/ui/ui_panels.cpp
-  src/filedialog_mac.mm
   ${imgui_SOURCE_DIR}/imgui.cpp
+)
+if(APPLE)
+  list(APPEND REVER_IMGUI_SOURCES src/filedialog_mac.mm src/mac_pinch.mm)
+endif()
+add_executable(rever-imgui MACOSX_BUNDLE
+  ${REVER_IMGUI_SOURCES}
   ${imgui_SOURCE_DIR}/imgui_draw.cpp
   ${imgui_SOURCE_DIR}/imgui_tables.cpp
   ${imgui_SOURCE_DIR}/imgui_widgets.cpp

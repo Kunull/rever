@@ -4,6 +4,7 @@
 #include "viz/digram.hpp"
 #include "viz/gl_helpers.hpp"
 #include "viz/range_selector.hpp"
+#include "mac_pinch.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #ifdef __APPLE__
@@ -253,6 +254,11 @@ static void trigramRenderFBO(int renderW, int renderH) {
   view[8] = sy;
   view[9] = -sx * cy;
   view[10] = cx * cy;
+  const float maxPan = 1.0f;
+  g.trigramPanX = std::max(-maxPan, std::min(maxPan, g.trigramPanX));
+  g.trigramPanY = std::max(-maxPan, std::min(maxPan, g.trigramPanY));
+  view[12] = g.trigramPanX;
+  view[13] = g.trigramPanY;
   view[14] = -g.trigramZoom;
   view[15] = 1.0f;
 
@@ -472,6 +478,8 @@ void drawTrigram() {
     }
     ImGui::TextDisabled("White from additive blend. New gradients: see shaders/trigram_fragment_gradient_template.glsl");
     ImGui::Spacing();
+    ImGui::TextDisabled("Trackpad: two-finger swipe = pan, pinch = zoom. Drag = rotate. Cmd+scroll = zoom (fallback).");
+    ImGui::Spacing();
     const float kBrightnessStep = 0.1f;
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Brightness (0 = lowest, 100 = highest)");
@@ -523,6 +531,7 @@ void drawTrigram() {
 
   ImGui::InvisibleButton("##trigram_area", avail);
 
+  // Drag = rotate. Scroll: modifier = zoom, no modifier = pan (with bounds).
   if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
     ImVec2 delta = ImGui::GetIO().MouseDelta;
     g.trigramRotY += delta.x * 0.5f;
@@ -532,11 +541,29 @@ void drawTrigram() {
   } else {
     g.trigramUserDragging = false;
   }
+  // Two-finger swipe = pan. Pinch = zoom (on macOS we use native NSEventTypeMagnify).
   if (ImGui::IsItemHovered()) {
-    float wheel = ImGui::GetIO().MouseWheel;
-    if (wheel != 0.0f) {
+    // Native pinch (macOS): drives zoom directly so pinch-to-zoom works.
+    float pinch = MacPinchZoomDeltaConsume();
+    if (pinch != 0.0f) {
+      g.trigramZoom -= pinch * 2.0f;  // scale so pinch feels natural
+      g.trigramZoom = std::max(0.35f, std::min(8.0f, g.trigramZoom));
+      g.trigramDirty = true;
+    }
+    // Scroll = pan (swipe). Cmd/Ctrl+scroll = zoom fallback when not on macOS or no pinch.
+    ImGuiIO& io = ImGui::GetIO();
+    float wheel = io.MouseWheel;
+    float wheelH = io.MouseWheelH;
+    bool zoomGesture = io.KeyCtrl || io.KeySuper;
+    if (zoomGesture && wheel != 0.0f) {
       g.trigramZoom -= wheel * 0.2f;
       g.trigramZoom = std::max(0.35f, std::min(8.0f, g.trigramZoom));
+      g.trigramDirty = true;
+    } else if (!zoomGesture && (wheel != 0.0f || wheelH != 0.0f)) {
+      float panSpeed = 0.04f * g.trigramZoom;
+      const float maxPan = 1.0f;
+      g.trigramPanY = std::max(-maxPan, std::min(maxPan, g.trigramPanY - wheel * panSpeed));   // swipe up → render up
+      g.trigramPanX = std::max(-maxPan, std::min(maxPan, g.trigramPanX + wheelH * panSpeed));  // swipe left → render left
       g.trigramDirty = true;
     }
   }

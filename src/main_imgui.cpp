@@ -3,6 +3,7 @@
 #include "viz/digram.hpp"
 #include "viz/trigram.hpp"
 #include "ui/ui_panels.hpp"
+#include "mac_pinch.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "imgui_impl_glfw.h"
@@ -106,6 +107,9 @@ int main(int argc, char** argv) {
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);
   glfwSetDropCallback(window, glfwDropCallback);
+#ifdef __APPLE__
+  MacInstallPinchMonitor();
+#endif
 
   LOG("[rever] ImGui init...\n");
   IMGUI_CHECKVERSION();

@@ -1,12 +1,12 @@
 #pragma once
 
-// Rever design language: layout tokens and helpers so UI stays consistent
-// without magic numbers.
+// Rever design language: ImHex-inspired layout tokens and helpers.
+// Spacing/padding follow ImHex (styles.imgui); theme is AMOLED, no rounding.
 #include "imgui.h"
 
 namespace Design {
 
-// ─── Layout tokens ─────────────────────────────────────────────────────────
+// ─── Layout tokens (ImHex-style) ───────────────────────────────────────────
 // Use these instead of hardcoded SameLine(x) / TableSetupColumn width.
 
 // Form / property rows: label column width (tables and inline label+widget).
@@ -38,8 +38,20 @@ const float PopupInputWidth = 220.0f;
 // Inspector table: type column width.
 const float InspectorTypeCol = 110.0f;
 
-// Vertical gap between sections (optional; can use ImGui::Spacing() instead).
+// Vertical gap between sections (matches ImGui ItemSpacing.y * 1).
 const float SectionGap = 8.0f;
+
+// ImHex-aligned style values (match setupTheme); use for PushStyleVar when needed.
+namespace Style {
+  const float WindowPaddingX = 8.0f;
+  const float WindowPaddingY = 8.0f;
+  const float FramePaddingX = 4.0f;
+  const float FramePaddingY = 3.0f;
+  const float ItemSpacingX = 8.0f;
+  const float ItemSpacingY = 4.0f;
+  const float CellPaddingX = 4.0f;
+  const float CellPaddingY = 2.0f;
+}
 
 // ─── Form table helpers ───────────────────────────────────────────────────
 // Use for label/value blocks (Info, Hashes, etc.) so alignment is automatic.

@@ -50,6 +50,7 @@ struct AppState {
   GLuint trigramShader = 0;
   int trigramVertCount = 0;
   float trigramRotX = -20.0f, trigramRotY = 45.0f;
+  float trigramPanX = 0.0f, trigramPanY = 0.0f;
   float trigramZoom = 3.0f;
   float trigramBrightness = 50.0f;
   bool trigramDirty = true;

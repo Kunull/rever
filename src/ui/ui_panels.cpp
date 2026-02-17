@@ -10,13 +10,14 @@
 #include <cstring>
 #include <vector>
 
-// Style values from ImHex VS Dark theme (styles.imgui); colors stay Rever's.
+// ImHex-inspired layout (padding/spacing from ImHex VS Dark styles.imgui).
+// Current font unchanged. AMOLED theme (black BGs). No rounded corners.
 void setupTheme() {
   ImGuiStyle& s = ImGui::GetStyle();
   s.Alpha = 1.0f;
   s.DisabledAlpha = 0.6f;
   s.WindowPadding = ImVec2(8, 8);
-  s.WindowRounding = 2.8f;
+  s.WindowRounding = 0.0f;
   s.WindowBorderSize = 1.0f;
   s.WindowMinSize = ImVec2(32, 32);
   s.WindowTitleAlign = ImVec2(0.5f, 0.5f);
@@ -25,17 +26,17 @@ void setupTheme() {
   s.PopupRounding = 0.0f;
   s.PopupBorderSize = 1.0f;
   s.FramePadding = ImVec2(4, 3);
-  s.FrameRounding = 2.2f;
+  s.FrameRounding = 0.0f;
   s.FrameBorderSize = 1.0f;
   s.ItemSpacing = ImVec2(8, 4);
   s.ItemInnerSpacing = ImVec2(4, 4);
   s.CellPadding = ImVec2(4, 2);
   s.IndentSpacing = 8.0f;
   s.ScrollbarSize = 14.0f;
-  s.ScrollbarRounding = 9.0f;
+  s.ScrollbarRounding = 0.0f;
   s.GrabMinSize = 7.6f;
-  s.GrabRounding = 5.0f;
-  s.TabRounding = 4.0f;
+  s.GrabRounding = 0.0f;
+  s.TabRounding = 0.0f;
   s.TabBorderSize = 1.0f;
   s.SeparatorTextBorderSize = 1.0f;
   s.DockingSeparatorSize = 1.0f;
