@@ -529,6 +529,7 @@ void drawTrigram() {
     return;
   }
 
+  ImGui::SetNextItemAllowOverlap();
   ImGui::InvisibleButton("##trigram_area", avail);
 
   // Point and move (click + drag) = rotate. Two-finger slide (scroll) = pan (slow).
@@ -560,7 +561,7 @@ void drawTrigram() {
       g.trigramDirty = true;
     } else if (!zoomGesture && (wheel != 0.0f || wheelH != 0.0f)) {
       const float maxPan = 1.0f;
-      float panSpeedScroll = 0.0012f * g.trigramZoom;  // slow pan for two-finger slide
+      float panSpeedScroll = 0.0024f * g.trigramZoom;  // two-finger slide = pan (2x previous speed)
       g.trigramPanX = std::max(-maxPan, std::min(maxPan, g.trigramPanX - wheelH * panSpeedScroll));
       g.trigramPanY = std::max(-maxPan, std::min(maxPan, g.trigramPanY + wheel * panSpeedScroll));
       g.trigramDirty = true;
@@ -592,12 +593,10 @@ void drawTrigram() {
                                         ImVec2(0, 1), ImVec2(1, 0));
   }
 
-  ImGui::EndChild();
-
-  // Settings button overlaid at top-right of canvas (only relevant to Trigram)
+  // Settings button over the canvas, top-right (inside child so it is visible and not clipped)
+  const float pad = 8.0f;
   float btnW = ImGui::CalcTextSize("Settings").x + ImGui::GetStyle().FramePadding.x * 2.0f;
   float btnH = ImGui::GetFrameHeight();
-  const float pad = 8.0f;
   float btnX = origin.x + drawW - pad - btnW;
   float btnY = origin.y + pad;
   ImGui::SetCursorScreenPos(ImVec2(btnX, btnY));
@@ -608,6 +607,16 @@ void drawTrigram() {
     ImGui::OpenPopup("TrigramSettings");
   }
   ImGui::PopStyleColor(3);
+
+  ImGui::EndChild();
+
+  // Popup anchored to canvas top-right (drawn in parent so it can extend beyond child)
+  ImVec2 canvasTR(origin.x + drawW, origin.y);
+  ImGui::SetNextWindowPos(canvasTR, ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
+  if (ImGui::BeginPopup("TrigramSettings")) {
+    drawTrigramSettingsPopupContent();
+    ImGui::EndPopup();
+  }
 
   ImGui::PopStyleVar();
   ImGui::End();

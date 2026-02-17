@@ -16,6 +16,7 @@
 #ifdef __APPLE__
 #include <TargetConditionals.h>
 #include <mach-o/dyld.h>
+#include "macos_menu.h"
 extern "C" {
 const char* openFileDialog();
 const char* saveFileDialog();
@@ -178,6 +179,82 @@ int main(int argc, char** argv) {
         lastAppliedTheme = g.themeName;
     }
 
+#ifdef __APPLE__
+    // Native macOS menu bar (File, Edit, View at top of screen)
+    {
+      static bool s_nativeMenuInited = false;
+      if (!s_nativeMenuInited) {
+        macosMenuBarInit();
+        s_nativeMenuInited = true;
+      }
+      if (macosBeginMainMenuBar()) {
+        if (macosBeginMenu("File", 1)) {
+          if (macosMenuItem("Open...", macosKey('o', 1, 0, 0, 0), 0, 1)) g.showOpenPopup = true;
+          if (macosMenuItem("Save As...", macosKey('s', 1, 1, 0, 0), 0, g.fileLoaded ? 1 : 0)) {
+            const char* path = saveFileDialog();
+            if (path) save_file(path, g.bytes.data(), g.bytes.size());
+          }
+          macosSeparator();
+          if (macosMenuItem("Quit", macosKey('q', 1, 0, 0, 0), 0, 1)) glfwSetWindowShouldClose(window, true);
+          macosEndMenu();
+        }
+        if (macosBeginMenu("Edit", 1)) {
+          if (macosMenuItem("Goto Address...", macosKey('g', 0, 0, 1, 0), 0, 1)) g.showGotoPopup = true;
+          if (macosMenuItem("Add Bookmark", macosKey('b', 0, 0, 1, 0), 0, g.fileLoaded ? 1 : 0)) {
+            size_t sa = std::min(g.hexSelStart, g.hexSelEnd);
+            size_t sb = std::max(g.hexSelStart, g.hexSelEnd);
+            g.bookmarks.push_back({sa != sb ? sa : g.hexCursor, sa != sb ? sb - sa + 1 : 1, "Bookmark"});
+          }
+          macosEndMenu();
+        }
+        if (macosBeginMenu("View", 1)) {
+          if (macosBeginMenu("Theme", 1)) {
+            std::vector<std::string> themes = getThemeNamesFromToml();
+            for (const std::string& name : themes) {
+              int sel = (g.themeName == name) ? 1 : 0;
+              if (macosMenuItemSelect(name.c_str(), macosKeyNone(), &sel, 1)) {
+                g.themeName = name;
+                setupTheme();
+              }
+            }
+            if (themes.empty())
+              macosMenuItem("(no themes.toml)", macosKeyNone(), 0, 0);
+            macosEndMenu();
+          }
+          macosSeparator();
+          { int v = g.showHexEditor ? 1 : 0;   if (macosMenuItemSelect("Hex Editor", macosKeyNone(), &v, 1)) g.showHexEditor = (v != 0); }
+          { int v = g.showDisassembly ? 1 : 0; if (macosMenuItemSelect("Disassembly", macosKeyNone(), &v, 1)) g.showDisassembly = (v != 0); }
+          { int v = g.showStrings ? 1 : 0;    if (macosMenuItemSelect("Strings", macosKeyNone(), &v, 1)) g.showStrings = (v != 0); }
+          { int v = g.showSearch ? 1 : 0;     if (macosMenuItemSelect("Search", macosKeyNone(), &v, 1)) g.showSearch = (v != 0); }
+          macosSeparator();
+          { int v = g.showTrigram ? 1 : 0;     if (macosMenuItemSelect("Trigram", macosKeyNone(), &v, 1)) g.showTrigram = (v != 0); }
+          if (macosMenuItem("Trigram settings...", macosKeyNone(), 0, 1)) {
+            g.showTrigram = true;
+            ImGui::OpenPopup("TrigramSettings");
+          }
+          { int v = g.showHistogram ? 1 : 0;   if (macosMenuItemSelect("Histogram", macosKeyNone(), &v, 1)) g.showHistogram = (v != 0); }
+          { int v = g.showEntropy ? 1 : 0;     if (macosMenuItemSelect("Entropy", macosKeyNone(), &v, 1)) g.showEntropy = (v != 0); }
+          { int v = g.showBigram ? 1 : 0;      if (macosMenuItemSelect("Bigram", macosKeyNone(), &v, 1)) g.showBigram = (v != 0); }
+          macosSeparator();
+          { int v = g.showInspector ? 1 : 0;   if (macosMenuItemSelect("Inspector", macosKeyNone(), &v, 1)) g.showInspector = (v != 0); }
+          { int v = g.showSections ? 1 : 0;    if (macosMenuItemSelect("Sections", macosKeyNone(), &v, 1)) g.showSections = (v != 0); }
+          { int v = g.showImports ? 1 : 0;     if (macosMenuItemSelect("Imports", macosKeyNone(), &v, 1)) g.showImports = (v != 0); }
+          { int v = g.showExports ? 1 : 0;     if (macosMenuItemSelect("Exports", macosKeyNone(), &v, 1)) g.showExports = (v != 0); }
+          { int v = g.showBookmarks ? 1 : 0;   if (macosMenuItemSelect("Bookmarks", macosKeyNone(), &v, 1)) g.showBookmarks = (v != 0); }
+          { int v = g.showInfo ? 1 : 0;        if (macosMenuItemSelect("Info", macosKeyNone(), &v, 1)) g.showInfo = (v != 0); }
+          macosSeparator();
+          if (macosMenuItem("Show All", macosKeyNone(), 0, 1)) {
+            g.showHexEditor = g.showInspector = g.showDisassembly = true;
+            g.showTrigram = g.showHistogram = g.showEntropy = g.showBigram = true;
+            g.showStrings = g.showSections = g.showImports = g.showExports = true;
+            g.showSearch = g.showBookmarks = g.showInfo = true;
+          }
+          macosEndMenu();
+        }
+        macosEndMainMenuBar();
+      }
+    }
+#else
     if (ImGui::BeginMainMenuBar()) {
       if (ImGui::BeginMenu("File")) {
         if (ImGui::MenuItem("Open...", "Cmd+O")) g.showOpenPopup = true;
@@ -218,7 +295,10 @@ int main(int argc, char** argv) {
         ImGui::MenuItem("Search", nullptr, &g.showSearch);
         ImGui::SeparatorText("Visualization");
         ImGui::MenuItem("Trigram", nullptr, &g.showTrigram);
-        if (ImGui::MenuItem("Trigram settings...")) ImGui::OpenPopup("TrigramSettings");
+        if (ImGui::MenuItem("Trigram settings...")) {
+          g.showTrigram = true;
+          ImGui::OpenPopup("TrigramSettings");
+        }
         ImGui::MenuItem("Histogram", nullptr, &g.showHistogram);
         ImGui::MenuItem("Entropy", nullptr, &g.showEntropy);
         ImGui::MenuItem("Bigram", nullptr, &g.showBigram);
@@ -240,11 +320,7 @@ int main(int argc, char** argv) {
       }
       ImGui::EndMainMenuBar();
     }
-
-    if (ImGui::BeginPopup("TrigramSettings")) {
-      drawTrigramSettingsPopupContent();
-      ImGui::EndPopup();
-    }
+#endif
 
     bool mod = io.KeySuper || io.KeyCtrl;
     if (mod && ImGui::IsKeyPressed(ImGuiKey_O)) g.showOpenPopup = true;

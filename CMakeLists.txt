@@ -52,7 +52,7 @@ set(REVER_IMGUI_SOURCES
   ${imgui_SOURCE_DIR}/imgui.cpp
 )
 if(APPLE)
-  list(APPEND REVER_IMGUI_SOURCES src/filedialog_mac.mm src/mac_pinch.mm)
+  list(APPEND REVER_IMGUI_SOURCES src/filedialog_mac.mm src/mac_pinch.mm src/macos_menu.m)
 endif()
 add_executable(rever-imgui MACOSX_BUNDLE
   ${REVER_IMGUI_SOURCES}

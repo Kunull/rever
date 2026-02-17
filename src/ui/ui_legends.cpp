@@ -47,6 +47,22 @@ ImU32 bigramLegendColor(float t, float /*unused*/) {
   return IM_COL32((uint8_t)(r * 255), (uint8_t)(gn * 200), (uint8_t)(b * 255), 255);
 }
 
+ImU32 bigramBlackwall2077LegendColor(float t, float /*unused*/) {
+  float r, g, b;
+  if (t < 0.5f) {
+    float u = t * 2.0f;
+    r = 0.35f + (0.22f - 0.35f) * u;
+    g = 0.02f + (0.06f - 0.02f) * u;
+    b = 0.08f + (0.20f - 0.08f) * u;
+  } else {
+    float u = (t - 0.5f) * 2.0f;
+    r = 0.22f + (0.00f - 0.22f) * u;
+    g = 0.06f + (0.28f - 0.06f) * u;
+    b = 0.20f + (0.42f - 0.20f) * u;
+  }
+  return IM_COL32((uint8_t)(r * 255), (uint8_t)(g * 255), (uint8_t)(b * 255), 255);
+}
+
 ImU32 bigramFireLegendColor(float t, float /*unused*/) {
   if (t <= 0.0f) return IM_COL32(0, 0, 0, 255);
   if (t >= 1.0f) return IM_COL32(255, 255, 255, 255);

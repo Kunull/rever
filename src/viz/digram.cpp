@@ -38,13 +38,26 @@ vec3 fireColor(float t) {
   if (t < 0.8) return mix(vec3(0.0, 0.9, 0.2), vec3(1.0, 0.85, 0.0), (t - 0.6) * 5.0);
   return mix(vec3(1.0, 0.85, 0.0), vec3(1.0, 1.0, 1.0), (t - 0.8) * 5.0);
 }
+vec3 blackwall2077Color(float t) {
+  t = clamp(t, 0.0, 1.0);
+  vec3 maroon = vec3(0.35, 0.02, 0.08);
+  vec3 peacock = vec3(0.0, 0.28, 0.42);
+  vec3 mid = vec3(0.22, 0.06, 0.2);
+  if (t < 0.5) return mix(maroon, mid, t * 2.0);
+  return mix(mid, peacock, (t - 0.5) * 2.0);
+}
 void main() {
   vec4 t = texture(tx, vCoord);
   float clr = t.x;
   float ch  = t.y;
-  if (colorByDensity != 0) {
+  if (colorByDensity == 2) {
     float d = (maxFreq > 0.0) ? clamp(clr / maxFreq, 0.0, 1.0) : 0.0;
     oColor = vec4(fireColor(d), 1.0);
+  } else if (colorByDensity == 1) {
+    if (clr > 0.0) ch /= clr;
+    clr *= 4096.0;
+    vec3 c = blackwall2077Color(ch);
+    oColor = vec4(c * clr, 1.0);
   } else {
     if (clr > 0.0) ch /= clr;
     clr *= 4096.0;
@@ -168,8 +181,8 @@ void drawBigram() {
     return;
   }
 
-  const char* colorNames[] = {"Color: Position in file", "Color: Density (fire)"};
-  if (ImGui::Combo("Color", &g.bigramColorMode, colorNames, 2)) {
+  const char* colorNames[] = {"Color: Position in file", "Color: Blackwall2077", "Color: Density (fire)"};
+  if (ImGui::Combo("Color", &g.bigramColorMode, colorNames, 3)) {
     renderDigramFBO();
   }
 
@@ -180,6 +193,8 @@ void drawBigram() {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     if (g.bigramColorMode == 0)
       drawLegendBar(dl, barPos, barW, barH, bigramLegendColor, 0.0f, "File start", "File end");
+    else if (g.bigramColorMode == 1)
+      drawLegendBar(dl, barPos, barW, barH, bigramBlackwall2077LegendColor, 0.0f, "File start", "File end");
     else {
       char bigramMaxStr[32];
       snprintf(bigramMaxStr, sizeof(bigramMaxStr), "%llu", (unsigned long long)g.digramMaxCount);
@@ -192,7 +207,9 @@ void drawBigram() {
       ImVec4(0.35f, 0.35f, 0.35f, 1),
       g.bigramColorMode == 0
           ? "Byte N (X) \xe2\x86\x92 Byte N+1 (Y)  |  Red=start  Blue=end"
-          : "Byte N (X) \xe2\x86\x92 Byte N+1 (Y)  |  Fire = pair frequency");
+          : g.bigramColorMode == 1
+              ? "Byte N (X) \xe2\x86\x92 Byte N+1 (Y)  |  Maroon=start  Peacock=end"
+              : "Byte N (X) \xe2\x86\x92 Byte N+1 (Y)  |  Fire = pair frequency");
 
   ImVec2 avail = ImGui::GetContentRegionAvail();
   float side = std::min(avail.x, avail.y);
