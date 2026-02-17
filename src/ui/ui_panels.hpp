@@ -1,6 +1,7 @@
 #pragma once
 
-void setupTheme();
+// Returns true if theme was applied from themes.toml, false if fell back to built-in.
+bool setupTheme();
 void drawHexEditor();
 void drawInspector();
 void drawDisassembly();

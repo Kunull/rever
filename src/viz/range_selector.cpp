@@ -268,28 +268,57 @@ void drawVizRangeSelector(
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
+  // Semantic colors: Stop = red, Up/Down (start) = green, disabled = grey
+  const ImVec4 stopBg(0.55f, 0.2f, 0.2f, 1.0f), stopHov(0.7f, 0.28f, 0.28f, 1.0f), stopAct(0.48f, 0.18f, 0.18f, 1.0f);
+  const ImVec4 goBg(0.2f, 0.5f, 0.2f, 1.0f), goHov(0.28f, 0.58f, 0.28f, 1.0f), goAct(0.18f, 0.45f, 0.18f, 1.0f);
+  const ImVec4 disBg(0.22f, 0.22f, 0.22f, 1.0f), disHov(0.26f, 0.26f, 0.26f, 1.0f), disAct(0.2f, 0.2f, 0.2f, 1.0f);
+
   // Up buttons: enabled only when slider does not touch start of region
   bool focusNotAtStart = (g.focusEnd != 0 && g.focusStart > 0);
   bool vizNotAtStart = (g.vizRangeEnd != 0 && g.vizRangeStart > focusStart);
   ImGui::PushID("strip1_up");
   ImGui::BeginDisabled(!focusNotAtStart);
-  ImGui::PushStyleColor(ImGuiCol_Button, g.focusSlidingUp ? ImVec4(0.2f, 0.5f, 0.2f, 1.0f) : ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+  if (!focusNotAtStart) {
+    ImGui::PushStyleColor(ImGuiCol_Button, disBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, disHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, disAct);
+  } else if (g.focusSlidingUp) {
+    ImGui::PushStyleColor(ImGuiCol_Button, stopBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, stopHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, stopAct);
+  } else {
+    ImGui::PushStyleColor(ImGuiCol_Button, goBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, goHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, goAct);
+  }
   if (ImGui::Button(g.focusSlidingUp ? "Stop" : "Up", ImVec2(stripWidthPx, 0))) {
     g.focusSlidingUp = !g.focusSlidingUp;
     if (onRangeChanged) onRangeChanged();
   }
-  ImGui::PopStyleColor();
+  ImGui::PopStyleColor(3);
   ImGui::EndDisabled();
   ImGui::PopID();
   ImGui::SameLine(0, 0);
   ImGui::PushID("strip2_up");
   ImGui::BeginDisabled(!vizNotAtStart);
-  ImGui::PushStyleColor(ImGuiCol_Button, g.vizSlidingUp ? ImVec4(0.2f, 0.5f, 0.2f, 1.0f) : ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+  if (!vizNotAtStart) {
+    ImGui::PushStyleColor(ImGuiCol_Button, disBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, disHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, disAct);
+  } else if (g.vizSlidingUp) {
+    ImGui::PushStyleColor(ImGuiCol_Button, stopBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, stopHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, stopAct);
+  } else {
+    ImGui::PushStyleColor(ImGuiCol_Button, goBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, goHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, goAct);
+  }
   if (ImGui::Button(g.vizSlidingUp ? "Stop" : "Up", ImVec2(stripWidthPx, 0))) {
     g.vizSlidingUp = !g.vizSlidingUp;
     if (onRangeChanged) onRangeChanged();
   }
-  ImGui::PopStyleColor();
+  ImGui::PopStyleColor(3);
   ImGui::EndDisabled();
   ImGui::PopID();
 
@@ -368,28 +397,52 @@ void drawVizRangeSelector(
   if (g.vizRangeEnd <= g.vizRangeStart) g.vizRangeEnd = g.vizRangeStart + 1;
   ImGui::EndChild();
 
-  // Down buttons: enabled only when slider does not touch end of region
+  // Down buttons: Stop = red, Down (start) = green, disabled = grey
   bool focusNotAtEnd = (g.focusEnd != 0 && g.focusEnd < fileSz);
   bool vizNotAtEnd = (g.vizRangeEnd != 0 && g.vizRangeEnd < focusEnd);
   ImGui::PushID("strip1_down");
   ImGui::BeginDisabled(!focusNotAtEnd);
-  ImGui::PushStyleColor(ImGuiCol_Button, g.focusSlidingDown ? ImVec4(0.2f, 0.5f, 0.2f, 1.0f) : ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+  if (!focusNotAtEnd) {
+    ImGui::PushStyleColor(ImGuiCol_Button, disBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, disHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, disAct);
+  } else if (g.focusSlidingDown) {
+    ImGui::PushStyleColor(ImGuiCol_Button, stopBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, stopHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, stopAct);
+  } else {
+    ImGui::PushStyleColor(ImGuiCol_Button, goBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, goHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, goAct);
+  }
   if (ImGui::Button(g.focusSlidingDown ? "Stop" : "Down", ImVec2(stripWidthPx, 0))) {
     g.focusSlidingDown = !g.focusSlidingDown;
     if (onRangeChanged) onRangeChanged();
   }
-  ImGui::PopStyleColor();
+  ImGui::PopStyleColor(3);
   ImGui::EndDisabled();
   ImGui::PopID();
   ImGui::SameLine(0, 0);
   ImGui::PushID("strip2_down");
   ImGui::BeginDisabled(!vizNotAtEnd);
-  ImGui::PushStyleColor(ImGuiCol_Button, g.vizSlidingDown ? ImVec4(0.2f, 0.5f, 0.2f, 1.0f) : ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+  if (!vizNotAtEnd) {
+    ImGui::PushStyleColor(ImGuiCol_Button, disBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, disHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, disAct);
+  } else if (g.vizSlidingDown) {
+    ImGui::PushStyleColor(ImGuiCol_Button, stopBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, stopHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, stopAct);
+  } else {
+    ImGui::PushStyleColor(ImGuiCol_Button, goBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, goHov);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, goAct);
+  }
   if (ImGui::Button(g.vizSlidingDown ? "Stop" : "Down", ImVec2(stripWidthPx, 0))) {
     g.vizSlidingDown = !g.vizSlidingDown;
     if (onRangeChanged) onRangeChanged();
   }
-  ImGui::PopStyleColor();
+  ImGui::PopStyleColor(3);
   ImGui::EndDisabled();
   ImGui::PopID();
 

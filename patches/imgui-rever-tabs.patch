@@ -1,0 +1,67 @@
+--- imgui_internal.h
++++ imgui_internal.h
+@@ -3685,7 +3685,7 @@ namespace ImGui
+     IMGUI_API void          TabItemSpacing(const char* str_id, ImGuiTabItemFlags flags, float width);
+     IMGUI_API ImVec2        TabItemCalcSize(const char* label, bool has_close_button_or_unsaved_marker);
+     IMGUI_API ImVec2        TabItemCalcSize(ImGuiWindow* window);
+-    IMGUI_API void          TabItemBackground(ImDrawList* draw_list, const ImRect& bb, ImGuiTabItemFlags flags, ImU32 col);
++    IMGUI_API void          TabItemBackground(ImDrawList* draw_list, const ImRect& bb, ImGuiTabItemFlags flags, ImU32 col, bool is_selected = false);
+     IMGUI_API void          TabItemLabelAndCloseButton(ImDrawList* draw_list, const ImRect& bb, ImGuiTabItemFlags flags, ImVec2 frame_padding, const char* label, ImGuiID tab_id, ImGuiID close_button_id, bool is_contents_visible, bool* out_just_closed, bool* out_text_clipped);
+ 
+     // Render helpers
+--- imgui_widgets.cpp
++++ imgui_widgets.cpp
+@@ -10302,7 +10302,7 @@ bool ImGui::TabItemEx(ImGuiTabBar* tab_bar, const char* label, bool* p_open, ImG
+     if (is_visible)
+     {
+         ImDrawList* display_draw_list = window->DrawList;
+         const ImU32 tab_col = GetColorU32((held || hovered) ? ImGuiCol_TabHovered : tab_contents_visible ? (tab_bar_focused ? ImGuiCol_TabSelected : ImGuiCol_TabDimmedSelected) : (tab_bar_focused ? ImGuiCol_Tab : ImGuiCol_TabDimmed));
+-        TabItemBackground(display_draw_list, bb, flags, tab_col);
++        TabItemBackground(display_draw_list, bb, flags, tab_col, tab_contents_visible);
+         if (tab_contents_visible && (tab_bar->Flags & ImGuiTabBarFlags_DrawSelectedOverline) && style.TabBarOverlineSize > 0.0f)
+         {
+             // Might be moved to TabItemBackground() ?
+@@ -10412,7 +10412,7 @@ ImVec2 ImGui::TabItemCalcSize(ImGuiWindow* window)
+     return TabItemCalcSize(window->Name, window->HasCloseButton || (window->Flags & ImGuiWindowFlags_UnsavedDocument));
+ }
+ 
+-void ImGui::TabItemBackground(ImDrawList* draw_list, const ImRect& bb, ImGuiTabItemFlags flags, ImU32 col)
++void ImGui::TabItemBackground(ImDrawList* draw_list, const ImRect& bb, ImGuiTabItemFlags flags, ImU32 col, bool is_selected)
+ {
+     // While rendering tabs, we trim 1 pixel off the top of our bounding box so they can fit within a regular frame height while looking "detached" from it.
+     ImGuiContext& g = *GImGui;
+@@ -10427,7 +10427,8 @@ void ImGui::TabItemBackground(ImDrawList* draw_list, const ImRect& bb, ImGuiTabIte
+         draw_list->PathArcToFast(ImVec2(bb.Min.x + rounding + 0.5f, y1 + rounding + 0.5f), rounding, 6, 9);
+         draw_list->PathArcToFast(ImVec2(bb.Max.x - rounding - 0.5f, y1 + rounding + 0.5f), rounding, 9, 12);
+         draw_list->PathLineTo(ImVec2(bb.Max.x - 0.5f, y2));
+-        draw_list->PathStroke(GetColorU32(ImGuiCol_Border), 0, g.Style.TabBorderSize);
++        ImU32 border_col = is_selected ? GetColorU32(ImGuiCol_TabSelectedOverline) : GetColorU32(ImGuiCol_Border);
++        draw_list->PathStroke(border_col, 0, g.Style.TabBorderSize);
+     }
+ }
+ 
+@@ -10478,9 +10479,7 @@ void ImGui::TabItemLabelAndCloseButton(ImDrawList* draw_list, const ImRect& bb,
+     //  'g.ActiveId==close_button_id' will be true when we are holding on the close button, in which case both hovered booleans are false
+     bool close_button_pressed = false;
+     bool close_button_visible = false;
+-    if (close_button_id != 0)
+-        if (is_contents_visible || bb.GetWidth() >= ImMax(button_sz, g.Style.TabMinWidthForCloseButton))
+-            if (g.HoveredId == tab_id || g.HoveredId == close_button_id || g.ActiveId == tab_id || g.ActiveId == close_button_id)
+-                close_button_visible = true;
++    if (close_button_id != 0 && (is_contents_visible || bb.GetWidth() >= ImMax(button_sz, g.Style.TabMinWidthForCloseButton)))
++        close_button_visible = true;
+     bool unsaved_marker_visible = (flags & ImGuiTabItemFlags_UnsavedDocument) != 0 && (button_pos.x + button_sz <= bb.Max.x);
+ 
+     if (close_button_visible)
+@@ -10505,7 +10504,11 @@ void ImGui::TabItemLabelAndCloseButton(ImDrawList* draw_list, const ImRect& bb,
+         ellipsis_max_x = text_pixel_clip_bb.Max.x;
+     }
+     LogSetNextTextDecoration("/", "\\");
++    if (is_contents_visible)
++        PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 255));
+     RenderTextEllipsis(draw_list, text_ellipsis_clip_bb.Min, text_ellipsis_clip_bb.Max, text_pixel_clip_bb.Max.x, ellipsis_max_x, label, NULL, &label_size);
++    if (is_contents_visible)
++        PopStyleColor();
+ 
+ #if 0
+     if (!is_contents_visible)

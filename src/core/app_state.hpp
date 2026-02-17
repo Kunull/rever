@@ -125,6 +125,9 @@ struct AppState {
   bool showOpenPopup = false;
   char openPath[1024] = "";
 
+  // UI theme (identifier = theme name in themes.toml)
+  std::string themeName = "Rever";
+
   // Panel visibility
   bool showHexEditor = true;
   bool showInspector = true;

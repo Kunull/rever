@@ -1,6 +1,7 @@
 #include "ui/ui_panels.hpp"
 #include "imgui.h"
 #include "ui/design.hpp"
+#include "ui/theme_loader.hpp"
 #include "core/app_state.hpp"
 #include "core/backend.hpp"
 #include "ui/ui_legends.hpp"
@@ -10,37 +11,26 @@
 #include <cstring>
 #include <vector>
 
-// ImHex-inspired layout (padding/spacing from ImHex VS Dark styles.imgui).
-// Current font unchanged. AMOLED theme (black BGs). No rounded corners.
-void setupTheme() {
+// Apply theme by name from themes.toml; fallback to built-in Rever style if not found.
+// ImHex design language (layout/spacing/rounding) is always applied at the end; only colors vary by theme.
+// Returns true if theme was applied from TOML, false if using built-in.
+bool setupTheme() {
+  if (applyThemeFromToml(g.themeName)) {
+    applyImHexDesignLanguage();
+    if (g.themeName == "Rever") {
+      ImGuiStyle& s = ImGui::GetStyle();
+      s.WindowRounding = s.ChildRounding = s.PopupRounding = 0.0f;
+      s.FrameRounding = s.ScrollbarRounding = s.GrabRounding = s.TabRounding = 0.0f;
+      // Dock and inactive tab borders dark; only active tab white (bg + overline)
+      ImVec4* c = ImGui::GetStyle().Colors;
+      c[ImGuiCol_Border] = ImVec4(0.27f, 0.27f, 0.27f, 1.0f);
+      c[ImGuiCol_TabSelected] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+      c[ImGuiCol_TabSelectedOverline] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+    return true;
+  }
+  // Fallback: built-in dark colors (theme controls colors; design language applied below)
   ImGuiStyle& s = ImGui::GetStyle();
-  s.Alpha = 1.0f;
-  s.DisabledAlpha = 0.6f;
-  s.WindowPadding = ImVec2(8, 8);
-  s.WindowRounding = 0.0f;
-  s.WindowBorderSize = 1.0f;
-  s.WindowMinSize = ImVec2(32, 32);
-  s.WindowTitleAlign = ImVec2(0.5f, 0.5f);
-  s.ChildRounding = 0.0f;
-  s.ChildBorderSize = 1.0f;
-  s.PopupRounding = 0.0f;
-  s.PopupBorderSize = 1.0f;
-  s.FramePadding = ImVec2(4, 3);
-  s.FrameRounding = 0.0f;
-  s.FrameBorderSize = 1.0f;
-  s.ItemSpacing = ImVec2(8, 4);
-  s.ItemInnerSpacing = ImVec2(4, 4);
-  s.CellPadding = ImVec2(4, 2);
-  s.IndentSpacing = 8.0f;
-  s.ScrollbarSize = 14.0f;
-  s.ScrollbarRounding = 0.0f;
-  s.GrabMinSize = 7.6f;
-  s.GrabRounding = 0.0f;
-  s.TabRounding = 0.0f;
-  s.TabBorderSize = 1.0f;
-  s.SeparatorTextBorderSize = 1.0f;
-  s.DockingSeparatorSize = 1.0f;
-
   ImVec4* c = s.Colors;
   ImVec4 black(0, 0, 0, 1);
   ImVec4 border(0.27f, 0.27f, 0.27f, 1);
@@ -86,10 +76,11 @@ void setupTheme() {
   c[ImGuiCol_ResizeGripActive] = ImVec4(0.5f, 0.5f, 0.5f, 1);
   c[ImGuiCol_Tab] = black;
   c[ImGuiCol_TabHovered] = ImVec4(0.15f, 0.15f, 0.15f, 1);
-  c[ImGuiCol_TabSelected] = ImVec4(0.8f, 0.8f, 0.8f, 1);
-  c[ImGuiCol_TabSelectedOverline] = ImVec4(0.8f, 0.8f, 0.8f, 1);
+  c[ImGuiCol_TabSelected] = ImVec4(1.0f, 1.0f, 1.0f, 1);       // Active tab in active dock: white background
+  c[ImGuiCol_TabSelectedOverline] = ImVec4(1.0f, 1.0f, 1.0f, 1);  // White overline on selected tab
   c[ImGuiCol_TabDimmed] = black;
   c[ImGuiCol_TabDimmedSelected] = ImVec4(0.15f, 0.15f, 0.15f, 1);
+  // Border stays dark (set above); active tab uses TabSelected (white bg) + TabSelectedOverline (white)
   c[ImGuiCol_DockingPreview] = ImVec4(0.4f, 0.4f, 0.4f, 0.7f);
   c[ImGuiCol_DockingEmptyBg] = black;
   c[ImGuiCol_TableHeaderBg] = ImVec4(0.05f, 0.05f, 0.05f, 1);
@@ -99,6 +90,14 @@ void setupTheme() {
   c[ImGuiCol_TableRowBgAlt] = ImVec4(0.03f, 0.03f, 0.03f, 1);
   c[ImGuiCol_TextSelectedBg] = active;
   c[ImGuiCol_NavHighlight] = selected;
+  applyImHexDesignLanguage();
+  // Tab styling already set above (white border, white active tab)
+  if (g.themeName == "Rever") {
+    ImGuiStyle& s = ImGui::GetStyle();
+    s.WindowRounding = s.ChildRounding = s.PopupRounding = 0.0f;
+    s.FrameRounding = s.ScrollbarRounding = s.GrabRounding = s.TabRounding = 0.0f;
+  }
+  return false;
 }
 
 void drawHexEditor() {

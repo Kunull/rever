@@ -1,7 +1,8 @@
 #pragma once
 
 // Rever design language: ImHex-inspired layout tokens and helpers.
-// Spacing/padding follow ImHex (styles.imgui); theme is AMOLED, no rounding.
+// Spacing/padding follow ImHex Dark (plugins/builtin/romfs/themes/dark.json styles.imgui).
+// See docs/imhex_styling_reference.md (from ImHex repo themes.cpp + dark.json).
 #include "imgui.h"
 
 namespace Design {
@@ -41,7 +42,7 @@ const float InspectorTypeCol = 110.0f;
 // Vertical gap between sections (matches ImGui ItemSpacing.y * 1).
 const float SectionGap = 8.0f;
 
-// ImHex-aligned style values (match setupTheme); use for PushStyleVar when needed.
+// ImHex Dark style values (applyImHexDesignLanguage applies these globally). Use for PushStyleVar when needed.
 namespace Style {
   const float WindowPaddingX = 8.0f;
   const float WindowPaddingY = 8.0f;
@@ -51,6 +52,11 @@ namespace Style {
   const float ItemSpacingY = 4.0f;
   const float CellPaddingX = 4.0f;
   const float CellPaddingY = 2.0f;
+  const float IndentSpacing = 21.0f;
+  const float ScrollbarSize = 14.0f;
+  const float ScrollbarRounding = 9.0f;
+  const float GrabMinSize = 12.0f;
+  const float TabRounding = 5.0f;
 }
 
 // ─── Form table helpers ───────────────────────────────────────────────────

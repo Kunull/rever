@@ -430,6 +430,67 @@ void buildTrigramGeometry() {
   g.trigramVertCount = (int)n;
 }
 
+void drawTrigramSettingsPopupContent() {
+  if (ImGui::Checkbox("Auto-rotate", &g.trigramAutoRotate)) g.trigramDirty = true;
+  if (ImGui::Checkbox("Invert colors (blue = start, maroon = end)", &g.trigramInvertColors)) g.trigramDirty = true;
+  ImGui::Spacing();
+  const char* gradientNames[] = { "Single", "Fyre" };
+  const int numGradients = 2;
+  int mode = std::max(0, std::min(g.trigramColorMode, numGradients - 1));
+  const float stripW = 60.f;
+  const float stripH = ImGui::GetFrameHeight() * 0.6f;
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Gradient");
+  ImGui::SameLine(Design::LabelWidth);
+  ImVec2 stripPos = ImGui::GetCursorScreenPos();
+  drawGradientStrip(stripPos, ImVec2(stripPos.x + stripW, stripPos.y + stripH), mode);
+  ImGui::Dummy(ImVec2(stripW, stripH));
+  ImGui::SameLine();
+  if (ImGui::BeginCombo("##gradient", gradientNames[mode])) {
+    for (int i = 0; i < numGradients; i++) {
+      ImGui::PushID(i);
+      bool selected = (g.trigramColorMode == i);
+      ImVec2 pos = ImGui::GetCursorScreenPos();
+      drawGradientStrip(pos, ImVec2(pos.x + stripW, pos.y + stripH), i);
+      ImGui::SetCursorScreenPos(ImVec2(pos.x + stripW + ImGui::GetStyle().ItemSpacing.x, pos.y));
+      if (ImGui::Selectable(gradientNames[i], selected)) {
+        g.trigramColorMode = i;
+        g.trigramDirty = true;
+      }
+      ImGui::PopID();
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::TextDisabled("White from additive blend. New gradients: see shaders/trigram_fragment_gradient_template.glsl");
+  ImGui::Spacing();
+  ImGui::TextDisabled("Trackpad: drag = rotate, two-finger slide = pan (slow), pinch = zoom. Cmd+scroll = zoom (fallback).");
+  ImGui::Spacing();
+  const float kBrightnessStep = 0.1f;
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("Brightness (0 = lowest, 100 = highest)");
+  ImGui::SameLine(Design::LabelWidth);
+  ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+  if (ImGui::Button("-")) { g.trigramBrightness = std::max(0.0f, g.trigramBrightness - kBrightnessStep); g.trigramDirty = true; }
+  ImGui::PopStyleColor(4);
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(52);
+  if (ImGui::InputFloat("##brightness", &g.trigramBrightness, 0.0f, 0.0f, "%.1f", ImGuiInputTextFlags_EnterReturnsTrue)) {
+    g.trigramBrightness = std::max(0.0f, std::min(100.0f, g.trigramBrightness));
+    g.trigramDirty = true;
+  }
+  ImGui::SameLine();
+  ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+  if (ImGui::Button("+")) { g.trigramBrightness = std::min(100.0f, g.trigramBrightness + kBrightnessStep); g.trigramDirty = true; }
+  ImGui::PopStyleColor(4);
+  ImGui::TextDisabled("Min/max are derived from current data. Bright spot = many null-byte trigrams at (0,0,0).");
+}
+
 void drawTrigram() {
   if (!ImGui::Begin("Trigram", &g.showTrigram)) {
     ImGui::End();
@@ -442,70 +503,6 @@ void drawTrigram() {
   }
   if (!g.trigramShader) initTrigramGL();
   size_t fileSz = g.bytes.size();
-
-  if (g.openTrigramSettingsPopup) {
-    g.openTrigramSettingsPopup = false;
-    ImGui::OpenPopup("TrigramSettings");
-  }
-  if (ImGui::BeginPopup("TrigramSettings")) {
-    if (ImGui::Checkbox("Auto-rotate", &g.trigramAutoRotate)) g.trigramDirty = true;
-    if (ImGui::Checkbox("Invert colors (blue = start, maroon = end)", &g.trigramInvertColors)) g.trigramDirty = true;
-    ImGui::Spacing();
-    const char* gradientNames[] = { "Single", "Fyre" };
-    const float stripW = 60.f;
-    const float stripH = ImGui::GetFrameHeight() * 0.6f;
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Gradient");
-    ImGui::SameLine(Design::LabelWidth);
-    ImVec2 stripPos = ImGui::GetCursorScreenPos();
-    drawGradientStrip(stripPos, ImVec2(stripPos.x + stripW, stripPos.y + stripH), g.trigramColorMode);
-    ImGui::Dummy(ImVec2(stripW, stripH));
-    ImGui::SameLine();
-    if (ImGui::BeginCombo("##gradient", gradientNames[g.trigramColorMode])) {
-      for (int i = 0; i < 2; i++) {
-        ImGui::PushID(i);
-        bool selected = (g.trigramColorMode == i);
-        ImVec2 pos = ImGui::GetCursorScreenPos();
-        drawGradientStrip(pos, ImVec2(pos.x + stripW, pos.y + stripH), i);
-        ImGui::SetCursorScreenPos(ImVec2(pos.x + stripW + ImGui::GetStyle().ItemSpacing.x, pos.y));
-        if (ImGui::Selectable(gradientNames[i], selected)) {
-          g.trigramColorMode = i;
-          g.trigramDirty = true;
-        }
-        ImGui::PopID();
-      }
-      ImGui::EndCombo();
-    }
-    ImGui::TextDisabled("White from additive blend. New gradients: see shaders/trigram_fragment_gradient_template.glsl");
-    ImGui::Spacing();
-    ImGui::TextDisabled("Trackpad: two-finger swipe = rotate, pinch = zoom. Drag = pan. Cmd+scroll = zoom (fallback).");
-    ImGui::Spacing();
-    const float kBrightnessStep = 0.1f;
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Brightness (0 = lowest, 100 = highest)");
-    ImGui::SameLine(Design::LabelWidth);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
-    if (ImGui::Button("-")) { g.trigramBrightness = std::max(0.0f, g.trigramBrightness - kBrightnessStep); g.trigramDirty = true; }
-    ImGui::PopStyleColor(4);
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(52);
-    if (ImGui::InputFloat("##brightness", &g.trigramBrightness, 0.0f, 0.0f, "%.1f", ImGuiInputTextFlags_EnterReturnsTrue)) {
-      g.trigramBrightness = std::max(0.0f, std::min(100.0f, g.trigramBrightness));
-      g.trigramDirty = true;
-    }
-    ImGui::SameLine();
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.8f, 0.8f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
-    if (ImGui::Button("+")) { g.trigramBrightness = std::min(100.0f, g.trigramBrightness + kBrightnessStep); g.trigramDirty = true; }
-    ImGui::PopStyleColor(4);
-    ImGui::TextDisabled("Min/max are derived from current data. Bright spot = many null-byte trigrams at (0,0,0).");
-    ImGui::EndPopup();
-  }
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
   float parentW = ImGui::GetContentRegionAvail().x;
@@ -534,19 +531,18 @@ void drawTrigram() {
 
   ImGui::InvisibleButton("##trigram_area", avail);
 
-  // Drag (click + move) = pan. Two-finger swipe (scroll) = rotate.
+  // Point and move (click + drag) = rotate. Two-finger slide (scroll) = pan (slow).
   if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
     ImVec2 delta = ImGui::GetIO().MouseDelta;
-    float panSpeed = 0.004f * g.trigramZoom;
-    const float maxPan = 1.0f;
-    g.trigramPanX = std::max(-maxPan, std::min(maxPan, g.trigramPanX + delta.x * panSpeed));
-    g.trigramPanY = std::max(-maxPan, std::min(maxPan, g.trigramPanY - delta.y * panSpeed));
+    const float rotSpeed = 0.3f;
+    g.trigramRotY += delta.x * rotSpeed;
+    g.trigramRotX -= delta.y * rotSpeed;
     g.trigramDirty = true;
     g.trigramUserDragging = true;
   } else {
     g.trigramUserDragging = false;
   }
-  // Pinch = zoom. Scroll (no modifier) = rotate. Cmd/Ctrl+scroll = zoom fallback.
+  // Pinch = zoom. Two-finger scroll = pan (slow). Cmd/Ctrl+scroll = zoom fallback.
   if (ImGui::IsItemHovered()) {
     float pinch = MacPinchZoomDeltaConsume();
     if (pinch != 0.0f) {
@@ -563,8 +559,10 @@ void drawTrigram() {
       g.trigramZoom = std::max(0.35f, std::min(8.0f, g.trigramZoom));
       g.trigramDirty = true;
     } else if (!zoomGesture && (wheel != 0.0f || wheelH != 0.0f)) {
-      g.trigramRotY += wheelH * 0.5f;
-      g.trigramRotX += wheel * 0.5f;
+      const float maxPan = 1.0f;
+      float panSpeedScroll = 0.0012f * g.trigramZoom;  // slow pan for two-finger slide
+      g.trigramPanX = std::max(-maxPan, std::min(maxPan, g.trigramPanX - wheelH * panSpeedScroll));
+      g.trigramPanY = std::max(-maxPan, std::min(maxPan, g.trigramPanY + wheel * panSpeedScroll));
       g.trigramDirty = true;
       g.trigramUserDragging = true;
     }

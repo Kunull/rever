@@ -3,6 +3,7 @@
 #include "viz/digram.hpp"
 #include "viz/trigram.hpp"
 #include "ui/ui_panels.hpp"
+#include "ui/theme_loader.hpp"
 #include "mac_pinch.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -23,6 +24,7 @@ const char* saveFileDialog();
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 FILE* g_logf = nullptr;
 
@@ -162,12 +164,19 @@ int main(int argc, char** argv) {
 
   bool firstFrame = true;
   bool secondFrame = false;
+  std::string lastAppliedTheme;
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    // Re-apply selected theme when it changes; only mark applied when TOML theme was used.
+    if (g.themeName != lastAppliedTheme) {
+      if (setupTheme())
+        lastAppliedTheme = g.themeName;
+    }
 
     if (ImGui::BeginMainMenuBar()) {
       if (ImGui::BeginMenu("File")) {
@@ -190,6 +199,18 @@ int main(int argc, char** argv) {
         ImGui::EndMenu();
       }
       if (ImGui::BeginMenu("View")) {
+        if (ImGui::BeginMenu("Theme")) {
+          std::vector<std::string> themes = getThemeNamesFromToml();
+          for (const std::string& name : themes) {
+            if (ImGui::MenuItem(name.c_str(), nullptr, g.themeName == name)) {
+              g.themeName = name;
+              setupTheme();
+            }
+          }
+          if (themes.empty())
+            ImGui::MenuItem("(no themes.toml)", nullptr, false, false);
+          ImGui::EndMenu();
+        }
         ImGui::SeparatorText("Analysis");
         ImGui::MenuItem("Hex Editor", nullptr, &g.showHexEditor);
         ImGui::MenuItem("Disassembly", nullptr, &g.showDisassembly);
@@ -197,7 +218,7 @@ int main(int argc, char** argv) {
         ImGui::MenuItem("Search", nullptr, &g.showSearch);
         ImGui::SeparatorText("Visualization");
         ImGui::MenuItem("Trigram", nullptr, &g.showTrigram);
-        if (ImGui::MenuItem("Trigram settings...")) g.openTrigramSettingsPopup = true;
+        if (ImGui::MenuItem("Trigram settings...")) ImGui::OpenPopup("TrigramSettings");
         ImGui::MenuItem("Histogram", nullptr, &g.showHistogram);
         ImGui::MenuItem("Entropy", nullptr, &g.showEntropy);
         ImGui::MenuItem("Bigram", nullptr, &g.showBigram);
@@ -218,6 +239,11 @@ int main(int argc, char** argv) {
         ImGui::EndMenu();
       }
       ImGui::EndMainMenuBar();
+    }
+
+    if (ImGui::BeginPopup("TrigramSettings")) {
+      drawTrigramSettingsPopupContent();
+      ImGui::EndPopup();
     }
 
     bool mod = io.KeySuper || io.KeyCtrl;
